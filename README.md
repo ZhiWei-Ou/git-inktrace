@@ -12,30 +12,30 @@
 </p>
 
 ```text
- git-inktrace  demo · main                                     ← Jan 4, 2026 – Oct 30, 2026
-  Heatmap   Files                                                 189 commits · all authors
+ git-inktrace  demo · main                                      ← Dec 21, 2025 – Oct 30, 2026
+  Heatmap   Files                                                     194 commits · all authors
 
-     Jan     Feb     Mar       Apr     May       Jun     Jul     Aug       Sep     Oct
-     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
- Mon ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
- Wed ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
- Fri ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
-     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+     Dec Jan     Feb     Mar       Apr     May       Jun     Jul     Aug       Sep     Oct
+     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+ Mon ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+ Wed ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+ Fri ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
+     ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■ ■
 
-     Less ■ ■ ■ ■ ■ More                                                    144 active days
+     Less ■ ■ ■ ■ ■ More                                                        148 active days
 
-       author                  this window      all history
-     ■ Bob <bob@x.io>            24  12.7%        27  11.9%
-     ■ Carol <carol@x.io>        22  11.6%        29  12.8%
-     ■ Dave <dave@x.io>          22  11.6%        28  12.3%
-     ■ Grace <grace@x.io>        22  11.6%        26  11.5%
-     ■ Alice <alice@x.io>        22  11.6%        24  10.6%
-     ■ Heidi <heidi@x.io>        21  11.1%        26  11.5%
-     ■ Ivan <ivan@x.io>          20  10.6%        23  10.1%
-     ■ Erin <erin@x.io>          19  10.1%        23  10.1%
-     ■ +1 other                  17   9.0%        21   9.3%
+       author                     Oct 2026      this window      all history
+     ■ Grace <Grace@x.io>         7  26.9%        23  11.9%        26  11.5%
+     ■ Carol <Carol@x.io>         4  15.4%        23  11.9%        29  12.8%
+     ■ Heidi <Heidi@x.io>         3  11.5%        22  11.3%        26  11.5%
+     ■ Bob <Bob@x.io>             2   7.7%        24  12.4%        27  11.9%
+     ■ Alice <Alice@x.io>         2   7.7%        22  11.3%        24  10.6%
+     ■ Ivan <Ivan@x.io>           2   7.7%        21  10.8%        23  10.1%
+     ■ Erin <Erin@x.io>           2   7.7%        19   9.8%        23  10.1%
+     ■ Dave <Dave@x.io>           1   3.8%        22  11.3%        28  12.3%
+     ■ +1 other                   3  11.5%        18   9.3%        21   9.3%
 
  ←→ year · t latest · a/A author · tab files · q quit
 ```
@@ -43,12 +43,12 @@
 ## Features
 
 - **Contribution heatmap** — a GitHub-style calendar of weeks by weekdays, sized to fit the terminal (up to 53 weeks).
-- **Contribution share** — the legend lists each author with their email, plus commit count and share both in the visible time window and across the whole repository history, busiest first. When the window already holds every commit, only the history column is shown.
+- **Contribution share** — the legend lists each author with their email, with commit count and share in the current calendar month, the visible time window and the whole repository history, busiest first. A column that would repeat its neighbor is hidden — for example, only the history column is shown when the window already holds every commit.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
 - **Focus on one author** — filter both views to a single contributor.
-- **Browse history by year** — step the window back and forth one year at a time with the arrow keys; arrows in the title bar show which way more history lies.
+- **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
 - **Works as a git subcommand** — put `git-inktrace` on your `PATH` and run `git inktrace` in any repository.
 
 ## Quick Start
@@ -104,14 +104,14 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | Key | Action |
 | --- | --- |
 | `tab`, `1`, `2` | Switch between the heatmap and the file ranking |
-| `←` `→` / `h` `l` | Move the window one year back / forward |
+| `←` `→` / `h` `l` | Move the window one year back / forward (one window at a time when the terminal shows less than a year) |
 | `t` | Return to the latest window |
 | `a` / `A` | Next / previous author filter |
 | `↑` `↓` / `k` `j` | Scroll the file ranking |
 | `pgup` `pgdn`, `g` `G` | Page, or jump to the top / bottom of the file ranking |
 | `q`, `esc` | Quit |
 
-The heatmap is read-only. The file ranking always covers the same dates and author filter as the heatmap. You can move back until the window reaches the first commit, and forward until the latest window.
+The heatmap is read-only. The file ranking always covers the same dates and author filter as the heatmap. You can move back while older commits lie before the window, and forward until the latest window. The month column is the calendar month of the window's last day.
 
 ### Building
 

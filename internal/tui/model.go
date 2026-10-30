@@ -37,16 +37,18 @@ type Model struct {
 	author        int       // stats.AllAuthors or an author index
 	end           time.Time // last day of the calendar
 
-	cal    stats.Calendar
-	shares []int // commits per author in the window, ignoring the author filter
-	files  []stats.FileStat
-	scroll int // first visible row of the file ranking
+	cal stats.Calendar
+	// Commits per author, ignoring the author filter: in the calendar month
+	// of the window's last day, and in the whole window.
+	monthShares, windowShares []int
+	files                     []stats.FileStat
+	scroll                    int // first visible row of the file ranking
 }
 
 // New creates a model showing the year up to today, or up to the latest
 // commit when the repository has been idle for longer than that.
 func New(data *stats.Data, opts Options) Model {
-	return Model{
+	m := Model{
 		data:   data,
 		opts:   opts,
 		theme:  newTheme(lipgloss.HasDarkBackground()),
@@ -55,6 +57,9 @@ func New(data *stats.Data, opts Options) Model {
 		author: stats.AllAuthors,
 		end:    defaultEnd(data),
 	}
+	// Render a valid first frame before the terminal size arrives.
+	m.refresh()
+	return m
 }
 
 func defaultEnd(data *stats.Data) time.Time {
@@ -140,17 +145,27 @@ func (m *Model) cycleAuthor(step int) {
 	m.author = pos
 }
 
-// shiftYears moves the calendar window by whole years, staying between the
-// first commit and the default end date.
+// shiftYears moves the calendar window by whole years, or by whole windows
+// when the terminal shows less than a year, so no dates are skipped. It moves
+// back only while older commits lie before the window, and never past the
+// default end.
 func (m *Model) shiftYears(n int) {
+	if n < 0 && !m.hasEarlier() {
+		return
+	}
 	end := m.end.AddDate(n, 0, 0)
+	if days := len(m.cal.Weeks) * 7; days < 365 {
+		end = m.end.AddDate(0, 0, n*days)
+	}
 	if latest := defaultEnd(m.data); end.After(latest) {
 		end = latest
 	}
-	if end.Before(midnight(m.data.Earliest())) {
-		return
-	}
 	m.end = end
+}
+
+// hasEarlier reports whether commits exist before the window.
+func (m Model) hasEarlier() bool {
+	return midnight(m.data.Earliest()).Before(m.cal.Start)
 }
 
 func (m *Model) scrollFiles(key string) {
@@ -181,7 +196,9 @@ func (m *Model) clampScroll() {
 func (m *Model) refresh() {
 	weeks := min(max((m.width-gutter)/cellWidth, 1), maxWeeks)
 	m.cal = m.data.Calendar(m.end, weeks, m.author)
-	m.shares = m.data.AuthorCommits(m.cal.Start, m.cal.End)
+	monthStart := time.Date(m.cal.End.Year(), m.cal.End.Month(), 1, 0, 0, 0, 0, time.Local)
+	m.monthShares = m.data.AuthorCommits(monthStart, m.cal.End)
+	m.windowShares = m.data.AuthorCommits(m.cal.Start, m.cal.End)
 	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.author, m.opts.Top)
 	m.clampScroll()
 }

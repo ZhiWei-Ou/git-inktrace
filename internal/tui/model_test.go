@@ -75,19 +75,17 @@ func TestYearNavigation(t *testing.T) {
 	if !m.cal.End.Equal(end) {
 		t.Errorf("moved past the latest window: %v", m.cal.End)
 	}
+	// A 53-week window ending a year ago also shows the commit from two
+	// years ago, so a second step back is refused.
 	m = press(m, "left", "h")
-	if want := end.AddDate(-2, 0, 0); !m.cal.End.Equal(want) {
-		t.Errorf("after two years back: end %v, want %v", m.cal.End, want)
-	}
-	m = press(m, "left")
-	if want := end.AddDate(-2, 0, 0); !m.cal.End.Equal(want) {
-		t.Errorf("moved before the first commit: end %v", m.cal.End)
+	if want := end.AddDate(-1, 0, 0); !m.cal.End.Equal(want) || m.cal.Total != 2 {
+		t.Errorf("after stepping back: end %v (want %v), total %d", m.cal.End, want, m.cal.Total)
 	}
 	m = press(m, "l")
-	if want := end.AddDate(-1, 0, 0); !m.cal.End.Equal(want) || m.cal.Total == 0 {
-		t.Errorf("forward: end %v, total %d", m.cal.End, m.cal.Total)
+	if !m.cal.End.Equal(end) {
+		t.Errorf("forward: end %v, want %v", m.cal.End, end)
 	}
-	m = press(m, "t")
+	m = press(m, "left", "t")
 	if !m.cal.End.Equal(end) {
 		t.Errorf("t did not return to the latest window: %v", m.cal.End)
 	}
@@ -154,5 +152,54 @@ func TestShareColumnsSingleWindow(t *testing.T) {
 
 	if strings.Contains(out, "this window") || !strings.Contains(out, "all history") || !strings.Contains(out, "50.0%") {
 		t.Errorf("want only the all-history column:\n%s", out)
+	}
+}
+
+func TestShareColumnsMonth(t *testing.T) {
+	now := time.Now()
+	month := now.Format("Jan 2006")
+	commits := []gitlog.Commit{
+		{Author: "Alice", Email: "alice@example.com", Time: now},
+		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(0, -2, 0)},
+		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(-3, 0, 0)},
+	}
+	m := New(stats.New(commits), Options{Top: 10})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	out := next.(Model).View()
+
+	for _, want := range []string{month, "this window", "all history", "100.0%", "50.0%", "66.7%"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("legend missing %q:\n%s", want, out)
+		}
+	}
+	// A month column identical to the window column (both empty here) is dropped.
+	m = press(next.(Model), "left")
+	if month := m.cal.End.Format("Jan 2006"); strings.Contains(m.View(), month) {
+		t.Errorf("month column shown for a past window:\n%s", m.View())
+	}
+}
+
+func TestViewBeforeWindowSize(t *testing.T) {
+	m := New(stats.New([]gitlog.Commit{{Author: "Alice", Email: "a@x", Time: time.Now()}}), Options{})
+	if !strings.Contains(m.View(), "Alice") {
+		t.Error("first frame missing content")
+	}
+}
+
+func TestNarrowWindowReachesOlderCommits(t *testing.T) {
+	now := time.Now()
+	commits := []gitlog.Commit{
+		{Author: "Alice", Email: "alice@example.com", Time: now},
+		{Author: "Alice", Email: "alice@example.com", Time: now.AddDate(0, -10, 0)},
+	}
+	m := New(stats.New(commits), Options{})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 30}) // about half a year
+	m = next.(Model)
+	if m.cal.Total != 1 {
+		t.Fatalf("narrow window total = %d, want 1", m.cal.Total)
+	}
+	m = press(m, "left")
+	if m.cal.Total != 1 || !m.cal.End.Before(now.AddDate(0, -6, 0)) {
+		t.Errorf("could not move back to the older commit: %v..%v total %d", m.cal.Start, m.cal.End, m.cal.Total)
 	}
 }

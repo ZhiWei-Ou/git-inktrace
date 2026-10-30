@@ -42,7 +42,7 @@ func (m Model) header() string {
 	}
 	// Arrows show which way more history lies.
 	back, fwd := "  ", "  "
-	if !m.end.AddDate(-1, 0, 0).Before(midnight(m.data.Earliest())) {
+	if m.hasEarlier() {
 		back = "← "
 	}
 	if m.end.Before(defaultEnd(m.data)) {
@@ -153,45 +153,76 @@ func (m Model) monthLabels() string {
 const heatmapChrome = 17
 
 // authorLegend is a table of authors in their colors with their commits and
-// share in the window and across the whole history, busiest first. The window
-// column is left out when the window already holds the whole history. Authors
-// without their own hue, or beyond the screen height, fold into one row.
+// share in the calendar month, the window and the whole history, busiest
+// first. A column is left out when it would repeat the broader one next to it.
+// Authors without their own hue, or beyond the screen height, fold into one row.
 func (m Model) authorLegend() string {
 	t := m.theme
-	windowTotal, allTotal := 0, m.data.Len()
+	all := make([]int, len(m.data.Authors))
+	for id, a := range m.data.Authors {
+		all[id] = a.Commits
+	}
+	type column struct {
+		title  string
+		counts []int // per author
+		total  int
+	}
+	candidates := []column{
+		{title: m.cal.End.Format("Jan 2006"), counts: m.monthShares},
+		{title: "this window", counts: m.windowShares},
+		{title: "all history", counts: all},
+	}
+	for i := range candidates {
+		for _, n := range candidates[i].counts {
+			candidates[i].total += n
+		}
+	}
+	var cols []column
+	for i, c := range candidates {
+		if i == len(candidates)-1 || c.total != candidates[i+1].total {
+			cols = append(cols, c)
+		}
+	}
+
 	var ids []int
-	for id, n := range m.shares {
-		windowTotal += n
-		if m.data.Authors[id].Commits > 0 {
+	for id, n := range all {
+		if n > 0 {
 			ids = append(ids, id)
 		}
 	}
 	sort.SliceStable(ids, func(i, j int) bool {
-		a, b := ids[i], ids[j]
-		if m.shares[a] != m.shares[b] {
-			return m.shares[a] > m.shares[b]
+		for _, c := range cols {
+			if a, b := c.counts[ids[i]], c.counts[ids[j]]; a != b {
+				return a > b
+			}
 		}
-		return a < b
+		return ids[i] < ids[j]
 	})
 
 	type row struct {
-		id                  int // -1 for the folded row
-		label               string
-		window, all, folded int
+		id     int // -1 for the folded row
+		label  string
+		values []int // per column
+		folded int
 	}
 	maxRows := max(m.height-heatmapChrome, 2)
 	var rows []row
-	others := row{id: -1}
+	others := row{id: -1, values: make([]int, len(cols))}
 	for _, id := range ids {
 		a := m.data.Authors[id]
 		own := id < len(authorHues) || id == m.author
 		if own && len(rows) < maxRows-1 {
-			rows = append(rows, row{id: id, label: a.Name + " <" + a.Email + ">", window: m.shares[id], all: a.Commits})
+			r := row{id: id, label: a.Name + " <" + a.Email + ">"}
+			for _, c := range cols {
+				r.values = append(r.values, c.counts[id])
+			}
+			rows = append(rows, r)
 			continue
 		}
 		others.folded++
-		others.window += m.shares[id]
-		others.all += a.Commits
+		for i, c := range cols {
+			others.values[i] += c.counts[id]
+		}
 	}
 	if others.folded > 0 {
 		others.label = fmt.Sprintf("+%d %s", others.folded, plural(others.folded, "other", "others"))
@@ -203,21 +234,14 @@ func (m Model) authorLegend() string {
 	for _, r := range rows {
 		labelWidth = max(labelWidth, ansi.StringWidth(r.label))
 	}
-	// When the window holds every commit both columns match, so keep one.
-	showWindow := windowTotal < allTotal
-	columns := 1
-	if showWindow {
-		columns = 2
-	}
-	labelWidth = min(labelWidth, max(m.width-gutter-2-columns*(numWidth+3), 8))
+	labelWidth = min(labelWidth, max(m.width-gutter-2-len(cols)*(numWidth+3), 8))
 
 	indent := strings.Repeat(" ", gutter)
 	var b strings.Builder
 	header := padRight("  author", labelWidth+2)
-	if showWindow {
-		header += "   " + padLeft("this window", numWidth)
+	for _, c := range cols {
+		header += "   " + padLeft(c.title, numWidth)
 	}
-	header += "   " + padLeft("all history", numWidth)
 	b.WriteString(indent + t.dim.Render(header) + "\n")
 	for _, r := range rows {
 		label := ansi.Truncate(r.label, labelWidth, "…")
@@ -233,10 +257,10 @@ func (m Model) authorLegend() string {
 		}
 		glyph := lipgloss.NewStyle().Foreground(t.authorColor(hue)).Render(cellGlyph)
 		line := indent + glyph + " " + style.Render(label) + strings.Repeat(" ", labelWidth-ansi.StringWidth(label))
-		if showWindow {
-			line += "   " + m.shareCell(r.window, windowTotal)
+		for i, c := range cols {
+			line += "   " + m.shareCell(r.values[i], c.total)
 		}
-		b.WriteString(line + "   " + m.shareCell(r.all, allTotal) + "\n")
+		b.WriteString(line + "\n")
 	}
 	return b.String()
 }
