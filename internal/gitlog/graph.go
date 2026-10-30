@@ -9,7 +9,7 @@ import (
 
 // GraphLine is one line of `git log --graph` output.
 type GraphLine struct {
-	Graph  string       // the drawing prefix, e.g. "| * " or "|/"
+	Graph  string       // the drawing prefix, e.g. "| *" or "|/", with git's lane colors as ANSI codes
 	Commit *GraphCommit // nil for lines that only connect branches
 }
 
@@ -42,10 +42,11 @@ type GraphCommit struct {
 
 // Graph returns the commit graph drawn by git, newest first, covering at most
 // limit commits. With all set it includes every branch, remote branch and tag
-// instead of only HEAD. Author names and emails have .mailmap applied.
+// instead of only HEAD. Lanes keep git's colors (log.graphColors), while the
+// commit fields stay plain. Author names and emails have .mailmap applied.
 func Graph(dir string, all bool, limit int) ([]GraphLine, error) {
 	args := []string{
-		"log", "--graph", "--color=never", "--decorate=full", "--max-count=" + strconv.Itoa(limit),
+		"log", "--graph", "--color=always", "--decorate=full", "--max-count=" + strconv.Itoa(limit),
 		"--format=" + recordSep + strings.Join([]string{"%h", "%D", "%s", "%aN", "%aE", "%at"}, fieldSep),
 	}
 	if all {

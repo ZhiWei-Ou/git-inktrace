@@ -139,6 +139,7 @@ func TestReadRepository(t *testing.T) {
 	run("checkout", "-q", "-b", "side")
 	run("commit", "-q", "--allow-empty", "-m", "side work")
 	run("checkout", "-q", "main")
+	run("commit", "-q", "--allow-empty", "-m", "main work")
 	head, err := Graph(dir, false, 100)
 	if err != nil {
 		t.Fatal(err)
@@ -147,8 +148,13 @@ func TestReadRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(head) != 2 || len(every) != 3 || every[0].Commit.Subject != "side work" || fmt.Sprint(head[0].Commit.Refs) != fmt.Sprint([]Ref{{"HEAD -> main", RefHead}}) {
+	// main and side diverged: both tips, a joining lane, then shared history.
+	if len(head) != 3 || len(every) != 5 || every[1].Commit.Subject != "side work" || every[2].Commit != nil ||
+		fmt.Sprint(head[0].Commit.Refs) != fmt.Sprint([]Ref{{"HEAD -> main", RefHead}}) {
 		t.Errorf("graph: head %+v, all %+v", head, every)
+	}
+	if !strings.Contains(every[2].Graph, "\x1b[") {
+		t.Errorf("branch lane not colored: %q", every[2].Graph)
 	}
 	if limited, _ := Graph(dir, true, 1); len(limited) != 1 {
 		t.Errorf("limit ignored: %d lines", len(limited))

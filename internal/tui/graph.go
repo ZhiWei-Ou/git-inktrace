@@ -151,7 +151,7 @@ func (m Model) graphLine(l gitlog.GraphLine) string {
 	t := m.theme
 	c := l.Commit
 	if c == nil {
-		return " " + t.dim.Render(ansi.Truncate(l.Graph, max(m.width-2, 1), ""))
+		return " " + ansi.Truncate(l.Graph, max(m.width-2, 1), "")
 	}
 	id := m.data.AuthorOf(c.Author, c.Email)
 	hue := id
@@ -161,8 +161,9 @@ func (m Model) graphLine(l gitlog.GraphLine) string {
 	color := lipgloss.NewStyle().Foreground(t.authorColor(hue))
 	faded := m.author != stats.AllAuthors && id != m.author
 
+	// Lanes keep git's colors; the commit dot takes the author's.
 	before, after, _ := strings.Cut(l.Graph, "*")
-	graph := t.dim.Render(before) + color.Render("●") + t.dim.Render(after)
+	graph := before + color.Render("●") + after
 
 	subject := t.text
 	if faded {
