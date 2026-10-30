@@ -145,7 +145,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.inspect.open {
 		switch msg.String() {
-		case "q", "ctrl+c", "tab", "shift+tab", "1", "2", "3":
+		case "ctrl+c", "tab", "shift+tab", "1", "2", "3":
 			m.inspect = inspectState{} // leave it for the view keys below
 		default:
 			return m, m.inspectKey(msg.String())

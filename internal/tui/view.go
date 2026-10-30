@@ -86,10 +86,8 @@ func (m Model) tabs() string {
 func (m Model) help() string {
 	keys := "←→ year · t latest · a/A author · tab files · q quit"
 	switch {
-	case m.inspect.open && m.inspect.commit == nil:
-		keys = "↑↓ select · enter copy hash · pgup/pgdn page · esc/i back · q quit"
 	case m.inspect.open:
-		keys = "↑↓ select · pgup/pgdn page · esc/i back · q quit"
+		keys = "↑↓ scroll · pgup/pgdn page · g/G top/bottom · q/esc/i back"
 	case m.view == FilesView:
 		keys = "↑↓ select · i inspect · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
 	case m.view == GraphView:

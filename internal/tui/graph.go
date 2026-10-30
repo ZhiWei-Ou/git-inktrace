@@ -53,15 +53,11 @@ func copyHash(hash string) tea.Cmd {
 }
 
 func (m *Model) receiveCopied(msg copiedMsg) {
-	status := &m.graph.status
-	if m.inspect.open {
-		status = &m.inspect.status
-	}
 	if msg.err != nil {
-		*status = "Copy failed: " + msg.err.Error()
+		m.graph.status = "Copy failed: " + msg.err.Error()
 		return
 	}
-	*status = "Copied " + msg.hash
+	m.graph.status = "Copied " + msg.hash
 }
 
 type graphMsg struct {

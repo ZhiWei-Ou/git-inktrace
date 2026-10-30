@@ -112,14 +112,14 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | `←` `→` / `h` `l` | Move the window one year back / forward (one window at a time when the terminal shows less than a year) |
 | `t` | Return to the latest window |
 | `a` / `A` | Next / previous author filter (heatmap and file ranking) |
-| `↑` `↓` / `k` `j` | Select the previous / next file in the ranking, commit in the graph, or row of an inspect page |
-| `i` | Inspect the selected file (the commits that touched it) or commit (the files it changed); `i` or `esc` goes back |
-| `enter` | Copy the selected commit's full hash to the clipboard (graph, and a file's inspect page) |
+| `↑` `↓` / `k` `j` | Select the previous / next file in the ranking, commit in the graph, or scroll an inspect page |
+| `i` | Inspect the selected file (the commits that touched it) or commit (the files it changed); `q`, `esc` or `i` goes back |
+| `enter` | Copy the selected commit's full hash to the clipboard (graph) |
 | `/` | Search the graph, highlighting matches as you type; `tab` completes `@commit`, `@author` or `@email`, `enter` jumps to the first match from the selection, `esc` closes the prompt, an empty search clears the highlight |
 | `n` / `N` | Jump to the next / previous matching commit (graph) |
 | `pgup` `pgdn`, `g` `G` | Page, or jump to the top / bottom of the file ranking or the graph |
 | `a` (graph) | Switch the graph between all branches (default) and the current branch |
-| `q`, `ctrl+c` | Quit |
+| `q`, `ctrl+c` | Quit (`q` leaves an inspect page first) |
 
 The heatmap is read-only. The file ranking, and the commits listed when inspecting a file, always cover the same dates and author filter as the heatmap. Inspecting a merge commit compares it with its first parent. You can move back while older commits lie before the window, and forward until the latest window. The month column is the calendar month of the window's last day.
 

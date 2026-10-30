@@ -23,9 +23,7 @@ type inspectState struct {
 	files   []gitlog.FileChange // files changed by commit
 	loading bool
 	err     error
-	cursor  int
 	scroll  int
-	status  string // result of the last copy
 }
 
 type inspectMsg struct {
@@ -77,19 +75,13 @@ func (m *Model) receiveInspect(msg inspectMsg) {
 
 func (m *Model) inspectKey(key string) tea.Cmd {
 	s := &m.inspect
-	s.status = ""
-	switch key {
-	case "esc", "i":
+	if key == "esc" || key == "i" || key == "q" {
 		m.inspect = inspectState{}
 		return nil
-	case "enter":
-		if s.commit == nil && s.cursor < len(s.commits) {
-			return copyHash(s.commits[s.cursor].Hash)
-		}
-		return nil
 	}
-	s.cursor = moveCursor(key, s.cursor, s.rows(), m.inspectRows())
-	s.scroll = follow(s.cursor, s.scroll, m.inspectRows(), s.rows())
+	// The page only scrolls: the positions are its first visible rows.
+	rows := m.inspectRows()
+	s.scroll = moveCursor(key, s.scroll, max(s.rows()-rows+1, 1), rows)
 	return nil
 }
 
@@ -138,11 +130,7 @@ func (m Model) inspectView() string {
 		} else {
 			line = m.fileCommitLine(i)
 		}
-		line = ansi.Truncate(line, max(m.width-1, 1), "…")
-		if i == s.cursor {
-			line = underline(line)
-		}
-		b.WriteString(line + "\n")
+		b.WriteString(ansi.Truncate(line, max(m.width-1, 1), "…") + "\n")
 	}
 
 	label := fmt.Sprintf("%d %s", len(s.commits), plural(len(s.commits), "commit", "commits"))
@@ -153,11 +141,7 @@ func (m Model) inspectView() string {
 		}
 		label = fmt.Sprintf("%d %s changed, +%d -%d", len(s.files), plural(len(s.files), "file", "files"), added, deleted)
 	}
-	status := fmt.Sprintf("%d–%d of %d", s.scroll+1, end, s.rows())
-	if s.status != "" {
-		status = s.status
-	}
-	b.WriteString(" " + t.accent.Render(label) + t.dim.Render(" · "+status) + "\n")
+	b.WriteString(" " + t.accent.Render(label) + t.dim.Render(fmt.Sprintf(" · %d–%d of %d", s.scroll+1, end, s.rows())) + "\n")
 	return b.String()
 }
 

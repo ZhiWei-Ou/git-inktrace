@@ -552,21 +552,31 @@ func TestInspectFile(t *testing.T) {
 		!strings.Contains(out, "c3c3c3c") || strings.Contains(out, "add readme") {
 		t.Fatalf("inspect parser.go:\n%s", out)
 	}
-	// Navigation keys move inside the page instead of the ranking.
-	if m = press(m, "j", "j"); m.inspect.cursor != 1 || m.cursor != 0 {
-		t.Errorf("inspect cursor %d, ranking cursor %d", m.inspect.cursor, m.cursor)
+	// Navigation keys scroll the page, which has no selection, instead of
+	// moving through the ranking.
+	if m = press(m, "j", "G"); m.inspect.scroll != 0 || m.cursor != 0 {
+		t.Errorf("scrolled %d with all rows visible, ranking cursor %d", m.inspect.scroll, m.cursor)
 	}
-	var copied string
-	copyToClipboard = func(s string) error { copied = s; return nil }
-	defer func() { copyToClipboard = clipboard.WriteAll }()
-	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if next, _ = m.Update(cmd()); copied != "a1a1a1a1a1" || !strings.Contains(next.(Model).View(), "Copied a1a1a1a1a1") {
-		t.Errorf("copied %q", copied)
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 8}) // one row of the list
+	if m = press(next.(Model), "j", "j"); m.inspect.scroll != 1 || !strings.Contains(m.View(), "add parser") {
+		t.Errorf("scroll %d:\n%s", m.inspect.scroll, m.View())
 	}
+	if m = press(m, "g"); m.inspect.scroll != 0 {
+		t.Errorf("g: scroll %d", m.inspect.scroll)
+	}
+	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter}); cmd != nil {
+		t.Error("enter should do nothing on the page")
+	}
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	m = next.(Model)
 
 	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if m = next.(Model); m.inspect.open || m.view != FilesView {
 		t.Errorf("esc should close the page: open %v, view %d", m.inspect.open, m.view)
+	}
+	m = press(m, "i")
+	if next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}); cmd != nil || next.(Model).inspect.open {
+		t.Errorf("q should close the page, not quit: open %v", next.(Model).inspect.open)
 	}
 	if m = press(m, "i", "tab"); m.inspect.open || m.view != GraphView {
 		t.Errorf("tab should close the page and switch: open %v, view %d", m.inspect.open, m.view)
