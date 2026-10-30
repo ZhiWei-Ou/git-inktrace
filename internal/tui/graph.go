@@ -21,7 +21,7 @@ const graphPage = 500
 const graphChrome = 6
 
 type graphState struct {
-	all     bool // every branch, remote branch and tag instead of HEAD
+	all     bool // every branch, remote branch and tag (the default) instead of HEAD
 	limit   int  // commits requested
 	lines   []gitlog.GraphLine
 	loaded  bool // lines hold the result for all and limit
@@ -152,7 +152,7 @@ func (m *Model) graphKey(key string) tea.Cmd {
 			return copyCommit(g.lines[g.cursor].Commit)
 		}
 		return nil
-	case "b":
+	case "a":
 		*g = graphState{all: !g.all, limit: graphPage}
 		return m.loadGraph()
 	}
@@ -181,7 +181,7 @@ func (m Model) graphScope() string {
 	if m.graph.all {
 		return "all branches"
 	}
-	return "HEAD"
+	return "current branch"
 }
 
 func (m Model) graphView() string {

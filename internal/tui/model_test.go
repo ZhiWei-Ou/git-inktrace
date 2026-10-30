@@ -246,7 +246,10 @@ func TestGraphView(t *testing.T) {
 		}}, gitlog.GraphLine{Graph: "|"})
 	}
 	// Fewer commits than requested means the whole history is loaded.
-	next, cmd := m.Update(graphMsg{all: false, limit: graphPage, lines: lines})
+	if !m.graph.all {
+		t.Error("graph does not start with all branches")
+	}
+	next, cmd := m.Update(graphMsg{all: true, limit: graphPage, lines: lines})
 	m = next.(Model)
 	if cmd != nil || !m.graph.done {
 		t.Fatalf("20 of %d commits: cmd %v, done %v", graphPage, cmd != nil, m.graph.done)
@@ -304,11 +307,11 @@ func TestGraphView(t *testing.T) {
 	}
 
 	// Switching scope reloads from scratch, and stale results are dropped.
-	m = press(m, "b")
-	if !m.graph.all || !m.graph.loading || len(m.graph.lines) != 0 {
-		t.Errorf("b did not reload: %+v", m.graph)
+	m = press(m, "a")
+	if m.graph.all || !m.graph.loading || len(m.graph.lines) != 0 || m.author != stats.AllAuthors {
+		t.Errorf("a did not switch to the current branch: %+v, author %d", m.graph, m.author)
 	}
-	next, _ = m.Update(graphMsg{all: false, limit: graphPage, lines: lines})
+	next, _ = m.Update(graphMsg{all: true, limit: graphPage, lines: lines})
 	if next.(Model).graph.loaded {
 		t.Error("stale graph result accepted")
 	}
@@ -328,7 +331,7 @@ func TestGraphLoadsMoreNearEnd(t *testing.T) {
 	for i := range lines {
 		lines[i] = gitlog.GraphLine{Graph: "*", Commit: &gitlog.GraphCommit{Hash: "h", Author: "A", Email: "a@x"}}
 	}
-	next, _ = m.Update(graphMsg{limit: graphPage, lines: lines})
+	next, _ = m.Update(graphMsg{all: true, limit: graphPage, lines: lines})
 	m = press(next.(Model), "G")
 	if !m.graph.loading || m.graph.limit != 2*graphPage {
 		t.Errorf("no further page requested: %+v", m.graph.limit)

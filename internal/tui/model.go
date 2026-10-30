@@ -27,7 +27,6 @@ type Options struct {
 	Branch string
 	Top    int    // number of files in the ranking
 	Dir    string // repository root, read by the graph view
-	All    bool   // graph every branch initially, not only HEAD
 }
 
 // Model is the bubbletea model.
@@ -62,7 +61,7 @@ func New(data *stats.Data, opts Options) Model {
 		height: 24,
 		author: stats.AllAuthors,
 		end:    defaultEnd(data),
-		graph:  graphState{all: opts.All, limit: graphPage},
+		graph:  graphState{all: true, limit: graphPage},
 	}
 	// Render a valid first frame before the terminal size arrives.
 	m.refresh()
@@ -139,10 +138,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.setView(filesView)
 	case "3":
 		return m, m.setView(graphView)
-	case "a":
-		m.cycleAuthor(1)
-	case "A":
-		m.cycleAuthor(-1)
+	case "a", "A":
+		if m.view == graphView {
+			return m, m.graphKey(msg.String()) // a switches the graph's branches
+		}
+		if msg.String() == "a" {
+			m.cycleAuthor(1)
+		} else {
+			m.cycleAuthor(-1)
+		}
 	case "left", "h", "right", "l", "t":
 		if m.view == graphView {
 			return m, nil // the graph has no time window

@@ -46,7 +46,7 @@
 - **Contribution share** — the legend lists each author with their email, with commit count and share in the current calendar month, the visible time window and the whole repository history, busiest first. A column that would repeat its neighbor is hidden — for example, only the history column is shown when the window already holds every commit.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most. History follows renames to each file's current path, and files no longer in `HEAD` are tagged `(deleted)`.
-- **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit's `*` takes its author's color. Toggle between `HEAD` and all branches, select a commit and press `enter` to copy its full hash to the system clipboard; history loads page by page as you scroll.
+- **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit's `*` takes its author's color. It shows every branch, remote branch and tag by default (stashes excluded); press `a` to switch to the current branch and back. Select a commit and press `enter` to copy its full hash to the system clipboard; history loads page by page as you scroll.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
 - **Focus on one author** — filter both views to a single contributor.
 - **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
@@ -107,16 +107,16 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | `tab`, `1`, `2`, `3` | Switch between the heatmap, the file ranking and the graph |
 | `←` `→` / `h` `l` | Move the window one year back / forward (one window at a time when the terminal shows less than a year) |
 | `t` | Return to the latest window |
-| `a` / `A` | Next / previous author filter |
+| `a` / `A` | Next / previous author filter (heatmap and file ranking) |
 | `↑` `↓` / `k` `j` | Scroll the file ranking, or select the previous / next commit in the graph |
 | `enter` | Copy the selected commit's full hash to the clipboard (graph) |
 | `pgup` `pgdn`, `g` `G` | Page, or jump to the top / bottom of the file ranking or the graph |
-| `b` | Graph only `HEAD`, or every branch, remote branch and tag |
+| `a` (graph) | Switch the graph between all branches (default) and the current branch |
 | `q`, `esc` | Quit |
 
 The heatmap is read-only. The file ranking always covers the same dates and author filter as the heatmap. You can move back while older commits lie before the window, and forward until the latest window. The month column is the calendar month of the window's last day.
 
-The year keys apply to the heatmap and file ranking; the graph shows the whole history. In the graph, the author filter fades other authors' commits, and authors not counted in the heatmap (for example, on unmerged branches without `-all`) are shown in grey. The graph starts with all branches when run with `-all`. Copying uses the system clipboard: `pbcopy` on macOS, the Windows API on Windows, and `xclip`, `xsel` or `wl-copy` on Linux, one of which must be installed.
+The year keys apply to the heatmap and file ranking; the graph shows the whole history. In the graph, an author filter chosen in the other views fades other authors' commits, and authors not counted in the heatmap (for example, on unmerged branches without `-all`) are shown in grey. Copying uses the system clipboard: `pbcopy` on macOS, the Windows API on Windows, and `xclip`, `xsel` or `wl-copy` on Linux, one of which must be installed.
 
 ```text
  * 0423a4e (HEAD -> main) release prep                             ■ Alice           2026-10-30

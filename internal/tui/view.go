@@ -87,7 +87,7 @@ func (m Model) help() string {
 	case filesView:
 		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
 	case graphView:
-		keys = "↑↓ select · enter copy hash · pgup/pgdn page · g/G top/bottom · b HEAD/all branches · a/A author · tab heatmap · q quit"
+		keys = "↑↓ select · enter copy hash · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
 	}
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }
