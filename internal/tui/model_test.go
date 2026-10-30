@@ -124,7 +124,7 @@ func TestFilesView(t *testing.T) {
 	}
 }
 
-func TestShareScope(t *testing.T) {
+func TestShareColumns(t *testing.T) {
 	now := time.Now()
 	commits := []gitlog.Commit{
 		{Author: "Alice", Email: "alice@example.com", Time: now},
@@ -133,22 +133,11 @@ func TestShareScope(t *testing.T) {
 	}
 	m := New(stats.New(commits), Options{Top: 10})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
-	m = next.(Model)
+	out := next.(Model).View()
 
-	sum := func(xs []int) (n int) {
-		for _, x := range xs {
-			n += x
+	for _, want := range []string{"this window", "all history", "Alice <alice@example.com>", "100.0%", "33.3%", "66.7%"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("legend missing %q:\n%s", want, out)
 		}
-		return n
-	}
-	if got := sum(m.shares); got != 1 {
-		t.Errorf("window shares cover %d commits, want 1", got)
-	}
-	m = press(m, "s")
-	if got := sum(m.shares); got != 3 || !strings.Contains(m.View(), "all history") {
-		t.Errorf("all-history shares cover %d commits, want 3", got)
-	}
-	if !strings.Contains(m.View(), "66.7%") {
-		t.Errorf("missing Bob's all-history share:\n%s", m.View())
 	}
 }

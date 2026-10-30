@@ -36,10 +36,9 @@ type Model struct {
 	view          view
 	author        int       // stats.AllAuthors or an author index
 	end           time.Time // last day of the calendar
-	allHistory    bool      // shares cover the whole history instead of the window
 
 	cal    stats.Calendar
-	shares []int // commits per author, ignoring the author filter
+	shares []int // commits per author in the window, ignoring the author filter
 	files  []stats.FileStat
 	scroll int // first visible row of the file ranking
 }
@@ -112,8 +111,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.shiftYears(-1)
 	case "right", "l":
 		m.shiftYears(1)
-	case "s":
-		m.allHistory = !m.allHistory
 	case "t":
 		m.end = defaultEnd(m.data)
 	default:
@@ -184,11 +181,7 @@ func (m *Model) clampScroll() {
 func (m *Model) refresh() {
 	weeks := min(max((m.width-gutter)/cellWidth, 1), maxWeeks)
 	m.cal = m.data.Calendar(m.end, weeks, m.author)
-	if m.allHistory {
-		m.shares = m.data.AuthorCommits(m.data.Earliest(), m.data.Latest())
-	} else {
-		m.shares = m.data.AuthorCommits(m.cal.Start, m.cal.End)
-	}
+	m.shares = m.data.AuthorCommits(m.cal.Start, m.cal.End)
 	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.author, m.opts.Top)
 	m.clampScroll()
 }

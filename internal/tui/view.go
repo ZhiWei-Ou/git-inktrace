@@ -73,7 +73,7 @@ func (m Model) tabs() string {
 }
 
 func (m Model) help() string {
-	keys := "←→ year · t latest · a/A author · s share scope · tab files · q quit"
+	keys := "←→ year · t latest · a/A author · tab files · q quit"
 	if m.view == filesView {
 		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab heatmap · q quit"
 	}
@@ -115,12 +115,7 @@ func (m Model) heatmap() string {
 		}
 	}
 	b.WriteString("\n" + spread(scale, t.dim.Render(fmt.Sprintf("%d active %s ", active, plural(active, "day", "days"))), m.width) + "\n\n")
-	scope := "this window"
-	if m.allHistory {
-		scope = "all history"
-	}
-	b.WriteString(strings.Repeat(" ", gutter) + t.dim.Render("Commit share · ") + t.text.Render(scope) + "\n")
-	b.WriteString(m.authorLegend() + "\n")
+	b.WriteString(m.authorLegend())
 	return b.String()
 }
 
@@ -154,56 +149,90 @@ func (m Model) monthLabels() string {
 	return m.theme.dim.Render(strings.TrimRight(string(line), " "))
 }
 
-// authorLegend lists the authors with commits in the share scope in their
-// colors with their share of those commits, busiest first.
+// Lines of the heatmap view outside the author legend rows.
+const heatmapChrome = 17
+
+// authorLegend is a table of authors in their colors with their commits and
+// share in the window and across the whole history, busiest first. Authors
+// without their own hue, or beyond the screen height, fold into one row.
 func (m Model) authorLegend() string {
 	t := m.theme
-	total := 0
+	windowTotal, allTotal := 0, m.data.Len()
 	var ids []int
 	for id, n := range m.shares {
-		if n > 0 {
+		windowTotal += n
+		if m.data.Authors[id].Commits > 0 {
 			ids = append(ids, id)
-			total += n
 		}
 	}
-	if total == 0 {
-		return strings.Repeat(" ", gutter) + t.dim.Render("No commits in this range")
-	}
-	sort.SliceStable(ids, func(i, j int) bool { return m.shares[ids[i]] > m.shares[ids[j]] })
+	sort.SliceStable(ids, func(i, j int) bool {
+		a, b := ids[i], ids[j]
+		if m.shares[a] != m.shares[b] {
+			return m.shares[a] > m.shares[b]
+		}
+		return a < b
+	})
 
-	var parts []string
-	others, othersCommits := 0, 0
+	type row struct {
+		id                  int // -1 for the folded row
+		label               string
+		window, all, folded int
+	}
+	maxRows := max(m.height-heatmapChrome, 2)
+	var rows []row
+	others := row{id: -1}
 	for _, id := range ids {
-		if id >= len(authorHues) && id != m.author {
-			others++
-			othersCommits += m.shares[id]
+		a := m.data.Authors[id]
+		own := id < len(authorHues) || id == m.author
+		if own && len(rows) < maxRows-1 {
+			rows = append(rows, row{id: id, label: a.Name + " <" + a.Email + ">", window: m.shares[id], all: a.Commits})
 			continue
 		}
-		parts = append(parts, m.authorChip(id, m.shares[id], total))
+		others.folded++
+		others.window += m.shares[id]
+		others.all += a.Commits
 	}
-	if others > 0 {
-		parts = append(parts, lipgloss.NewStyle().Foreground(t.authorColor(len(authorHues))).Render(cellGlyph)+
-			t.dim.Render(fmt.Sprintf(" +%d %s %d · %s", others, plural(others, "other", "others"),
-				othersCommits, percent(othersCommits, total))))
+	if others.folded > 0 {
+		others.label = fmt.Sprintf("+%d %s", others.folded, plural(others.folded, "other", "others"))
+		rows = append(rows, others)
 	}
-	return wrap(strings.Repeat(" ", gutter), parts, strings.Repeat(" ", gutter), m.width)
+
+	const numWidth = 7 + 1 + 6 // count, space, percent
+	labelWidth := 0
+	for _, r := range rows {
+		labelWidth = max(labelWidth, ansi.StringWidth(r.label))
+	}
+	labelWidth = min(labelWidth, max(m.width-gutter-2-2*(numWidth+3), 8))
+
+	indent := strings.Repeat(" ", gutter)
+	var b strings.Builder
+	b.WriteString(indent + t.dim.Render(padRight("  author", labelWidth+2)+"   "+
+		padLeft("this window", numWidth)+"   "+padLeft("all history", numWidth)) + "\n")
+	for _, r := range rows {
+		label := ansi.Truncate(r.label, labelWidth, "…")
+		style := t.text
+		if r.id < 0 {
+			style = t.dim
+		} else if r.id == m.author {
+			style = style.Bold(true).Underline(true)
+		}
+		hue := r.id
+		if hue < 0 {
+			hue = len(authorHues) // the shared "others" hue
+		}
+		glyph := lipgloss.NewStyle().Foreground(t.authorColor(hue)).Render(cellGlyph)
+		b.WriteString(indent + glyph + " " + style.Render(label) + strings.Repeat(" ", labelWidth-ansi.StringWidth(label)) +
+			"   " + m.shareCell(r.window, windowTotal) + "   " + m.shareCell(r.all, allTotal) + "\n")
+	}
+	return b.String()
 }
 
-func (m Model) authorChip(id, commits, total int) string {
-	t := m.theme
-	name := t.text
-	if id == m.author {
-		name = name.Bold(true).Underline(true)
+// shareCell renders a commit count and its share of total.
+func (m Model) shareCell(n, total int) string {
+	if n == 0 {
+		return m.theme.dim.Render(padLeft("–", 7) + " " + padLeft("", 6))
 	}
-	a := m.data.Authors[id]
-	email := ""
-	if a.Email != "" {
-		email = t.dim.Render(" <" + a.Email + ">")
-	}
-	chip := lipgloss.NewStyle().Foreground(t.authorColor(id)).Render(cellGlyph) + " " +
-		name.Render(a.Name) + email + t.text.Render(fmt.Sprintf(" %d", commits)) +
-		t.dim.Render(" · ") + t.accent.Render(percent(commits, total))
-	return ansi.Truncate(chip, max(m.width-gutter, 1), "…")
+	return m.theme.text.Render(padLeft(fmt.Sprint(n), 7)) + " " + m.theme.accent.Render(padLeft(percent(n, total), 6))
 }
 
 func (m Model) fileRows() int {
