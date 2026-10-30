@@ -55,9 +55,13 @@ func Branch(dir string) string {
 	return ""
 }
 
+// allRefs selects HEAD, every branch, remote branch and tag. Unlike --all it
+// leaves out refs/stash, whose index commits are not real work.
+var allRefs = []string{"HEAD", "--branches", "--remotes", "--tags"}
+
 // Options selects which history to read.
 type Options struct {
-	All bool // read all refs instead of HEAD
+	All bool // read every branch, remote branch and tag instead of HEAD
 }
 
 // Read returns the non-merge commits reachable from HEAD (or all refs), newest first.
@@ -69,7 +73,7 @@ func Read(dir string, opts Options) ([]Commit, error) {
 		"--format=" + recordSep + "%H" + fieldSep + "%aN" + fieldSep + "%aE" + fieldSep + "%at",
 	}
 	if opts.All {
-		args = append(args, "--all")
+		args = append(args, allRefs...)
 	}
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir

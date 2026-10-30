@@ -24,7 +24,7 @@ func main() {
 func run() error {
 	var (
 		dir         = flag.String("C", ".", "run as if started in `path`")
-		all         = flag.Bool("all", false, "include commits from all refs, not only HEAD")
+		all         = flag.Bool("all", false, "include every branch, remote branch and tag, not only HEAD (stashes excluded)")
 		top         = flag.Int("top", 100, "number of files in the ranking (0 for all)")
 		showVersion = flag.Bool("version", false, "print version and exit")
 	)

@@ -161,9 +161,9 @@ func (m Model) graphLine(l gitlog.GraphLine) string {
 	color := lipgloss.NewStyle().Foreground(t.authorColor(hue))
 	faded := m.author != stats.AllAuthors && id != m.author
 
-	// Lanes keep git's colors; the commit dot takes the author's.
+	// Lanes keep git's colors; the commit mark takes the author's.
 	before, after, _ := strings.Cut(l.Graph, "*")
-	graph := before + color.Render("●") + after
+	graph := before + color.Render("*") + after
 
 	subject := t.text
 	if faded {

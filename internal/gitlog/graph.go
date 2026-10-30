@@ -50,7 +50,7 @@ func Graph(dir string, all bool, limit int) ([]GraphLine, error) {
 		"--format=" + recordSep + strings.Join([]string{"%h", "%D", "%s", "%aN", "%aE", "%at"}, fieldSep),
 	}
 	if all {
-		args = append(args, "HEAD", "--branches", "--remotes", "--tags")
+		args = append(args, allRefs...)
 	}
 	out, err := git(dir, args...)
 	if err != nil {

@@ -46,7 +46,7 @@
 - **Contribution share** — the legend lists each author with their email, with commit count and share in the current calendar month, the visible time window and the whole repository history, busiest first. A column that would repeat its neighbor is hidden — for example, only the history column is shown when the window already holds every commit.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most. History follows renames to each file's current path, and files no longer in `HEAD` are tagged `(deleted)`.
-- **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit dot takes its author's color. Toggle between `HEAD` and all branches; history loads page by page as you scroll.
+- **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit's `*` takes its author's color. Toggle between `HEAD` and all branches; history loads page by page as you scroll.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
 - **Focus on one author** — filter both views to a single contributor.
 - **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
@@ -78,7 +78,7 @@ git inktrace
 git-inktrace [flags]
 
   -C path     run as if started in path (default ".")
-  -all        include commits from all refs, not only HEAD
+  -all        include every branch, remote branch and tag, not only HEAD (stashes excluded)
   -top int    number of files in the ranking, 0 for all (default 100)
   -version    print version and exit
 ```
@@ -87,7 +87,7 @@ Examples:
 
 ```sh
 git inktrace -C ~/src/project     # inspect another repository
-git inktrace -all                 # count commits on every branch and tag
+git inktrace -all                 # count commits on every branch and tag, skipping stashes
 git inktrace -top 0               # rank every changed file
 ```
 
@@ -118,16 +118,16 @@ The heatmap is read-only. The file ranking always covers the same dates and auth
 The year keys apply to the heatmap and file ranking; the graph shows the whole history. In the graph, the author filter fades other authors' commits, and authors not counted in the heatmap (for example, on unmerged branches without `-all`) are shown in grey. The graph starts with all branches when run with `-all`.
 
 ```text
- ● 0423a4e (HEAD -> main) release prep                             ■ Alice           2026-10-30
- | ● 320eea5 (wip) experiment                                      ■ Dave            2026-10-30
+ * 0423a4e (HEAD -> main) release prep                             ■ Alice           2026-10-30
+ | * 320eea5 (wip) experiment                                      ■ Dave            2026-10-30
  |/
- ● 2941c72 (tag: v0.1.0) Merge branch 'feat'                       ■ Alice           2026-10-30
+ * 2941c72 (tag: v0.1.0) Merge branch 'feat'                       ■ Alice           2026-10-30
  |\
- | ● 88e70f0 (feat) parser tests                                   ■ Bob             2026-10-30
- | ● b4893bc add parser                                            ■ Bob             2026-10-30
- ● | 2bb4a49 fix docs                                              ■ Carol           2026-10-30
+ | * 88e70f0 (feat) parser tests                                   ■ Bob             2026-10-30
+ | * b4893bc add parser                                            ■ Bob             2026-10-30
+ * | 2bb4a49 fix docs                                              ■ Carol           2026-10-30
  |/
- ● 1db4d7c core setup                                              ■ Alice           2026-10-30
+ * 1db4d7c core setup                                              ■ Alice           2026-10-30
 ```
 
 ### Building

@@ -140,6 +140,19 @@ func TestReadRepository(t *testing.T) {
 	run("commit", "-q", "--allow-empty", "-m", "side work")
 	run("checkout", "-q", "main")
 	run("commit", "-q", "--allow-empty", "-m", "main work")
+	// A stash must not count as work, even with All.
+	if err := os.WriteFile(filepath.Join(dir, "docs/b.txt"), []byte("wip\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("stash", "-q")
+	commits, err = Read(dir, Options{All: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 4 {
+		t.Errorf("All read %d commits, want 4 without the stash", len(commits))
+	}
+
 	head, err := Graph(dir, false, 100)
 	if err != nil {
 		t.Fatal(err)
