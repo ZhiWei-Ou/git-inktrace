@@ -127,6 +127,12 @@ func TestPunchCard(t *testing.T) {
 	if s := card.Slots[time.Monday][0]; s.Total != 0 || s.Top != -1 {
 		t.Errorf("empty slot = %+v", s)
 	}
+	if alice := card.ByAuthor[0]; alice == nil || alice[time.Tuesday][18] != 1 || alice[time.Tuesday][9] != 1 || alice[time.Sunday][12] != 1 {
+		t.Errorf("Alice's hours = %v", card.ByAuthor[0])
+	}
+	if _, off := at(2026, 3, 10, 9).Zone(); card.Zones[off] != 5 {
+		t.Errorf("zones = %v", card.Zones)
+	}
 
 	if bob := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 31, 0), 1); bob.Total != 2 || bob.Slots[time.Tuesday][8].Top != 1 {
 		t.Errorf("bob card = %+v", bob)

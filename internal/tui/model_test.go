@@ -216,7 +216,12 @@ func TestHoursView(t *testing.T) {
 			t.Fatalf("width %d: view %d, punch %d, calendar %d", width, m.view, m.punch.Total, m.cal.Total)
 		}
 		out := m.View()
-		for _, want := range []string{"Sun", "Sat", "21", "peak", "after hours", "weekends", "Alice"} {
+		wants := []string{"Sun", "Sat", "21", "peak slot", "Alice", "hours 00–23"}
+		if width >= 80 {
+			// Summary and rhythm columns that need the room.
+			wants = append(wants, "after hours", "weekends", "time zones", "UTC", "on each author's own clock")
+		}
+		for _, want := range wants {
 			if !strings.Contains(out, want) {
 				t.Errorf("width %d: punch card missing %q:\n%s", width, want, out)
 			}
@@ -234,6 +239,61 @@ func TestHoursView(t *testing.T) {
 	}
 	if m = press(m, "tab"); m.view != HeatmapView {
 		t.Errorf("tab from hours: view %d", m.view)
+	}
+}
+
+func TestZones(t *testing.T) {
+	for want, zs := range map[string]map[int]int{
+		"UTC+0":              {0: 3},
+		"UTC-5":              {-5 * 3600: 2},
+		"UTC+5:30 · 2 zones": {19800: 4, 3600: 1},
+	} {
+		if got := zones(zs); got != want {
+			t.Errorf("zones(%v) = %q, want %q", zs, got, want)
+		}
+	}
+}
+
+func TestHoursRhythm(t *testing.T) {
+	tokyo, ny := time.FixedZone("JST", 9*3600), time.FixedZone("EST", -5*3600)
+	// Mon 2026-10-26; Alice works mornings in Tokyo, Bob late evenings and
+	// Saturdays in New York.
+	var commits []gitlog.Commit
+	for d := 0; d < 4; d++ {
+		commits = append(commits,
+			gitlog.Commit{Author: "Alice", Email: "a@x", Time: time.Date(2026, 10, 26+d, 10, 0, 0, 0, tokyo)},
+			gitlog.Commit{Author: "Alice", Email: "a@x", Time: time.Date(2026, 10, 26+d, 11, 0, 0, 0, tokyo)},
+			gitlog.Commit{Author: "Bob", Email: "b@x", Time: time.Date(2026, 10, 24, 20+d, 0, 0, 0, ny)})
+	}
+	m := New(stats.New(commits, nil), Options{View: HoursView})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = next.(Model)
+	out := ansi.Strip(m.View())
+	for _, want := range []string{"Mon 10:00", "10:00", "33.3%", "UTC+9 · 2 zones"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("summary missing %q:\n%s", want, out)
+		}
+	}
+	row := func(name string) string {
+		for _, l := range strings.Split(out, "\n") {
+			if strings.Contains(l, "■ "+name) {
+				return l
+			}
+		}
+		t.Fatalf("no row for %s:\n%s", name, out)
+		return ""
+	}
+	// Alice: peak 10:00, none after hours or on weekends; Bob: 20:00, all
+	// on a Saturday.
+	if a := strings.Fields(row("Alice")); a[len(a)-3] != "10:00" || a[len(a)-2] != "0.0%" || a[len(a)-1] != "0.0%" {
+		t.Errorf("Alice row: %q", a)
+	}
+	if b := strings.Fields(row("Bob")); b[len(b)-3] != "20:00" || b[len(b)-1] != "100.0%" {
+		t.Errorf("Bob row: %q", b)
+	}
+	// The block is centered.
+	if lead := len(row("Alice")) - len(strings.TrimLeft(row("Alice"), " ")); lead < (120-80)/2 {
+		t.Errorf("not centered: %q", row("Alice"))
 	}
 }
 

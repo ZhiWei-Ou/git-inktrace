@@ -178,22 +178,26 @@ func (m Model) monthLabels() string {
 // Lines of the heatmap view outside the author legend rows.
 const heatmapChrome = 20
 
-// overview sums up the repository in columns spread across the grid with
-// equal space around each, every value centered under its dim title.
-// Columns that do not fit in width are left out from the right.
+// overview sums up the repository above the heatmap.
 func (m Model) overview(width int) string {
-	t := m.theme
 	created := m.opts.Created
 	if created.IsZero() {
 		created = m.data.Earliest()
 	}
-	cells := [][2]string{
+	return m.statRow([][2]string{
 		{"created", formatDate(created)},
 		{"age", age(created, time.Now())},
 		{"last commit", ago(m.data.Latest(), today())},
 		{"commits", thousands(m.data.Len())},
 		{"authors", thousands(len(m.data.Authors))},
-	}
+	}, width)
+}
+
+// statRow lays out titled values in columns spread across width with equal
+// space around each, every value centered under its dim title. Columns
+// that do not fit are left out from the right.
+func (m Model) statRow(cells [][2]string, width int) string {
+	t := m.theme
 	const gap = 4 // least space between neighboring cells
 	area := width - gutter
 	widths := make([]int, len(cells))

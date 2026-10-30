@@ -214,9 +214,11 @@ type Slot struct {
 // on each author's own clock: a commit made at 23:00 in Tokyo lands at 23
 // wherever the history is viewed.
 type PunchCard struct {
-	Slots [7][24]Slot
-	Max   int // highest slot total
-	Total int
+	Slots    [7][24]Slot
+	ByAuthor map[int]*[7][24]int // each author's commits by weekday and hour
+	Zones    map[int]int         // commits by UTC offset in seconds
+	Max      int                 // highest slot total
+	Total    int
 }
 
 // PunchCard builds the punch card of the commits between from and to
@@ -224,7 +226,7 @@ type PunchCard struct {
 // AllAuthors.
 func (d *Data) PunchCard(from, to time.Time, author int) PunchCard {
 	from, to = midnight(from.Local()), midnight(to.Local())
-	var card PunchCard
+	card := PunchCard{ByAuthor: map[int]*[7][24]int{}, Zones: map[int]int{}}
 	var byAuthor [7][24]map[int]int
 	for _, c := range d.commits {
 		if author != AllAuthors && c.author != author || c.day.Before(from) || c.day.After(to) {
@@ -235,6 +237,12 @@ func (d *Data) PunchCard(from, to time.Time, author int) PunchCard {
 			byAuthor[wd][h] = map[int]int{}
 		}
 		byAuthor[wd][h][c.author]++
+		if card.ByAuthor[c.author] == nil {
+			card.ByAuthor[c.author] = &[7][24]int{}
+		}
+		card.ByAuthor[c.author][wd][h]++
+		_, offset := c.clock.Zone()
+		card.Zones[offset]++
 		card.Slots[wd][h].Total++
 		card.Total++
 	}
