@@ -117,6 +117,13 @@ func CommitFiles(dir, hash string) ([]FileChange, error) {
 	return commits[0].Files, nil
 }
 
+// CommitBody returns the message of one commit without its subject, with
+// trailing blank lines removed.
+func CommitBody(dir, hash string) (string, error) {
+	out, err := git(dir, "show", "-s", "--format=%b", hash, "--")
+	return strings.TrimRight(string(out), "\n"), err
+}
+
 // Tracked returns the paths of the files in the HEAD tree.
 func Tracked(dir string) ([]string, error) {
 	out, err := git(dir, "ls-tree", "-r", "-z", "--name-only", "HEAD")

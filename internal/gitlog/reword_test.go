@@ -72,6 +72,9 @@ func TestReword(t *testing.T) {
 	if got := run("log", "-1", "--format=%B", reworded); got != "Second, reworded\n\nWith a body." {
 		t.Errorf("message = %q", got)
 	}
+	if body, err := CommitBody(dir, reworded); body != "With a body." || err != nil {
+		t.Errorf("CommitBody = %q, %v", body, err)
+	}
 	if got := run("log", "--format=%s", "HEAD"); got != "last\nMerge branch 'side'\nmain work\nside work\nSecond, reworded\nfirst" {
 		t.Errorf("history:\n%s", got)
 	}

@@ -643,8 +643,19 @@ func TestInspectCommit(t *testing.T) {
 		{Path: "new/name.go", OldPath: "old/name.go"},
 		{Path: "logo.png", Added: -1, Deleted: -1},
 	}
-	next, _ = next.(Model).Update(inspectMsg{hash: "bbbbbbbbbb", files: files})
+	body := "Explain why.\n\n" + strings.Repeat("word ", 40) + "end\n\nSigned-off-by: Alice <a@x>"
+	next, _ = next.(Model).Update(inspectMsg{hash: "bbbbbbbbbb", body: body, files: files})
 	out := next.(Model).View()
+	// The whole body shows, wrapped to the screen, before the files.
+	if !strings.Contains(out, "Signed-off-by: Alice <a@x>") || !strings.Contains(out, "word end") ||
+		strings.Index(out, "Explain why.") > strings.Index(out, "main.go") {
+		t.Errorf("body missing or misplaced:\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if lipgloss.Width(line) > 120 {
+			t.Errorf("line %d wide: %q", lipgloss.Width(line), line)
+		}
+	}
 	for _, want := range []string{"commit bbbbbbbbbb", "main.go", "+10", "-5", "++++", "old/name.go → new/name.go", "bin", "3 files changed, +10 -5"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q:\n%s", want, out)

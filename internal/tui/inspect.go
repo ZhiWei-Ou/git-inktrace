@@ -20,6 +20,7 @@ type inspectState struct {
 	path    string              // file inspected from the ranking
 	commit  *gitlog.GraphCommit // commit inspected from the graph
 	commits []stats.FileCommit  // commits touching path
+	body    string              // message of commit after its subject
 	files   []gitlog.FileChange // files changed by commit
 	loading bool
 	err     error
@@ -28,15 +29,32 @@ type inspectState struct {
 
 type inspectMsg struct {
 	hash  string
+	body  string
 	files []gitlog.FileChange
 	err   error
 }
 
-func (s inspectState) rows() int {
-	if s.commit != nil {
-		return len(s.files)
+// inspectLines renders the scrolling part of the page: the commits touching
+// the file, or the commit's message body followed by the files it changed.
+func (m Model) inspectLines() []string {
+	s := m.inspect
+	var lines []string
+	if s.commit == nil {
+		for i := range s.commits {
+			lines = append(lines, m.fileCommitLine(i))
+		}
+		return lines
 	}
-	return len(s.commits)
+	if s.body != "" {
+		for l := range strings.SplitSeq(ansi.Wrap(s.body, max(m.width-3, 1), ""), "\n") {
+			lines = append(lines, " "+m.theme.text.Render(l))
+		}
+		lines = append(lines, "")
+	}
+	for i := range s.files {
+		lines = append(lines, m.changedFileLine(i))
+	}
+	return lines
 }
 
 // openInspect opens the detail page of the selected file or commit.
@@ -59,7 +77,11 @@ func (m *Model) openInspect() tea.Cmd {
 		dir := m.opts.Dir
 		return func() tea.Msg {
 			files, err := gitlog.CommitFiles(dir, c.FullHash)
-			return inspectMsg{hash: c.FullHash, files: files, err: err}
+			if err != nil {
+				return inspectMsg{hash: c.FullHash, err: err}
+			}
+			body, err := gitlog.CommitBody(dir, c.FullHash)
+			return inspectMsg{hash: c.FullHash, body: body, files: files, err: err}
 		}
 	}
 	return nil
@@ -70,7 +92,7 @@ func (m *Model) receiveInspect(msg inspectMsg) {
 	if !s.open || s.commit == nil || s.commit.FullHash != msg.hash {
 		return // closed, or another commit opened since
 	}
-	s.loading, s.files, s.err = false, msg.files, msg.err
+	s.loading, s.body, s.files, s.err = false, msg.body, msg.files, msg.err
 }
 
 func (m *Model) inspectKey(key string) tea.Cmd {
@@ -81,7 +103,7 @@ func (m *Model) inspectKey(key string) tea.Cmd {
 	}
 	// The page only scrolls: the positions are its first visible rows.
 	rows := m.inspectRows()
-	s.scroll = moveCursor(key, s.scroll, max(s.rows()-rows+1, 1), rows)
+	s.scroll = moveCursor(key, s.scroll, max(len(m.inspectLines())-rows+1, 1), rows)
 	return nil
 }
 
@@ -118,18 +140,14 @@ func (m Model) inspectView() string {
 		return b.String() + " " + t.dim.Render("Cannot read the commit: "+s.err.Error()) + "\n"
 	case s.loading:
 		return b.String() + " " + t.dim.Render("Loading changed files…") + "\n"
-	case s.rows() == 0:
+	}
+	lines := m.inspectLines()
+	if len(lines) == 0 {
 		return b.String() + " " + t.dim.Render("No file changes") + "\n"
 	}
 
-	end := min(s.scroll+m.inspectRows(), s.rows())
-	for i := s.scroll; i < end; i++ {
-		var line string
-		if s.commit != nil {
-			line = m.changedFileLine(i)
-		} else {
-			line = m.fileCommitLine(i)
-		}
+	end := min(s.scroll+m.inspectRows(), len(lines))
+	for _, line := range lines[s.scroll:end] {
 		b.WriteString(ansi.Truncate(line, max(m.width-1, 1), "…") + "\n")
 	}
 
@@ -141,7 +159,7 @@ func (m Model) inspectView() string {
 		}
 		label = fmt.Sprintf("%d %s changed, +%d -%d", len(s.files), plural(len(s.files), "file", "files"), added, deleted)
 	}
-	b.WriteString(" " + t.accent.Render(label) + t.dim.Render(fmt.Sprintf(" · %d–%d of %d", s.scroll+1, end, s.rows())) + "\n")
+	b.WriteString(" " + t.accent.Render(label) + t.dim.Render(fmt.Sprintf(" · %d–%d of %d", s.scroll+1, end, len(lines))) + "\n")
 	return b.String()
 }
 
