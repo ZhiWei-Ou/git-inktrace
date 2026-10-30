@@ -9,6 +9,8 @@ import (
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
 	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
@@ -282,8 +284,12 @@ func TestGraphView(t *testing.T) {
 	if last := len(lines) - 2; m.graph.cursor != last || m.graph.scroll+m.graphRows() <= last {
 		t.Errorf("G: cursor %d, scroll %d", m.graph.cursor, m.graph.scroll)
 	}
-	if !strings.Contains(m.View(), "▌") {
-		t.Error("selected line not marked")
+	// Underlines only render with a color profile, absent without a terminal.
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	selected := m.graphLine(lines[m.graph.cursor], true)
+	if !strings.Contains(selected, "\x1b[4") || strings.Contains(m.graphLine(lines[0], false), "\x1b[4") {
+		t.Errorf("only the selected line should be underlined: %q", selected)
 	}
 
 	// Enter copies the selected commit's full hash.

@@ -219,18 +219,17 @@ const (
 	graphDateWidth   = 10
 )
 
-// graphLine renders one graph line; the selected commit gets a marker in
-// the left margin and a bold subject.
+// graphLine renders one graph line; the selected commit is underlined from
+// its hash to the end of the line.
 func (m Model) graphLine(l gitlog.GraphLine, selected bool) string {
 	t := m.theme
 	c := l.Commit
 	if c == nil {
 		return " " + ansi.Truncate(l.Graph, max(m.width-2, 1), "")
 	}
-	margin := " "
-	if selected {
-		margin = t.accent.Bold(true).Render("▌")
-	}
+	u := func(s lipgloss.Style) lipgloss.Style { return s.Underline(selected) }
+	space := func(n int) string { return u(t.text).Render(strings.Repeat(" ", max(n, 0))) }
+
 	id := m.data.AuthorOf(c.Author, c.Email)
 	hue := id
 	if hue < 0 {
@@ -241,30 +240,29 @@ func (m Model) graphLine(l gitlog.GraphLine, selected bool) string {
 
 	// Lanes keep git's colors; the commit mark takes the author's.
 	before, after, _ := strings.Cut(l.Graph, "*")
-	graph := before + color.Render("*") + after
+	graph := " " + before + color.Render("*") + after + " "
 
 	subject := t.text
 	if faded {
 		subject = t.dim
 	}
-	if selected {
-		subject = subject.Bold(true)
-	}
-	left := margin + graph + " " + t.dim.Render(c.Hash) + " "
+	text := u(t.dim).Render(c.Hash) + space(1)
 	if len(c.Refs) > 0 {
-		left += m.refs(c.Refs) + " "
+		text += m.refs(c.Refs, selected) + space(1)
 	}
-	left += subject.Render(c.Subject)
+	text += u(subject).Render(c.Subject)
 
 	rightWidth := 2 + graphAuthorWidth + 2 + graphDateWidth + 1
 	if m.width < 60+rightWidth {
-		return ansi.Truncate(left, max(m.width-1, 1), "…")
+		return graph + ansi.Truncate(text, max(m.width-1-lipgloss.Width(graph), 1), "…")
 	}
+	textWidth := m.width - rightWidth - lipgloss.Width(graph)
+	text = ansi.Truncate(text, max(textWidth-1, 1), "…")
 	name := ansi.Truncate(c.Author, graphAuthorWidth-2, "…")
-	author := color.Render(cellGlyph) + " " + subject.Render(name)
-	right := padRight(author, graphAuthorWidth) + "  " + t.dim.Render(c.Time.Local().Format("2006-01-02")) + " "
-	left = ansi.Truncate(left, m.width-rightWidth-1, "…")
-	return padRight(left, m.width-rightWidth) + "  " + right
+	author := u(color).Render(cellGlyph) + space(1) + u(subject).Render(name)
+	return graph + text + space(textWidth-lipgloss.Width(text)+2) +
+		author + space(graphAuthorWidth-lipgloss.Width(author)+2) +
+		u(t.dim).Render(c.Time.Local().Format("2006-01-02")) + " "
 }
 
 // refColors follow git's decoration colors.
@@ -276,15 +274,15 @@ var refColors = map[gitlog.RefKind]lipgloss.Color{
 	gitlog.RefOther:  "#d29922",
 }
 
-func (m Model) refs(refs []gitlog.Ref) string {
-	t := m.theme
+func (m Model) refs(refs []gitlog.Ref, underline bool) string {
+	punct := m.theme.dim.Underline(underline)
 	parts := make([]string, len(refs))
 	for i, r := range refs {
 		name := r.Name
 		if r.Kind == gitlog.RefTag {
 			name = "tag: " + name
 		}
-		parts[i] = lipgloss.NewStyle().Foreground(refColors[r.Kind]).Bold(true).Render(name)
+		parts[i] = lipgloss.NewStyle().Foreground(refColors[r.Kind]).Bold(true).Underline(underline).Render(name)
 	}
-	return t.dim.Render("(") + strings.Join(parts, t.dim.Render(", ")) + t.dim.Render(")")
+	return punct.Render("(") + strings.Join(parts, punct.Render(", ")) + punct.Render(")")
 }
