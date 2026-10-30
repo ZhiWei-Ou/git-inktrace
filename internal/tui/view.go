@@ -26,6 +26,8 @@ func (m Model) View() string {
 	b.WriteString(m.header() + "\n")
 	b.WriteString(m.tabs() + "\n\n")
 	switch {
+	case m.helpOpen:
+		b.WriteString(m.helpPage())
 	case m.inspect.open:
 		b.WriteString(m.inspectView())
 	case m.view == HeatmapView:
@@ -37,7 +39,7 @@ func (m Model) View() string {
 	case m.view == HoursView:
 		b.WriteString(m.punchCard())
 	}
-	b.WriteString("\n" + m.help())
+	b.WriteString("\n" + m.footer())
 	return b.String()
 }
 
@@ -83,21 +85,6 @@ func (m Model) tabs() string {
 		right = who + " "
 	}
 	return spread(" "+strings.Join(parts, " "), right, m.width)
-}
-
-func (m Model) help() string {
-	keys := "←→ year · t latest · a/A author · tab files · q quit"
-	switch {
-	case m.inspect.open:
-		keys = "↑↓ scroll · pgup/pgdn page · g/G top/bottom · q/esc back"
-	case m.view == FilesView:
-		keys = "↑↓ select · enter inspect · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
-	case m.view == GraphView:
-		keys = "↑↓ select · enter inspect · o copy hash · e reword · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab hours · q quit"
-	case m.view == HoursView:
-		keys = "←→ year · t latest · a/A author · tab heatmap · q quit"
-	}
-	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }
 
 // heatmap draws the calendar with its scale and author legend as one block,

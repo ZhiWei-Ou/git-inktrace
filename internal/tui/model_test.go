@@ -832,3 +832,59 @@ func TestGraphReword(t *testing.T) {
 		t.Errorf("cursor %d, focus %q", m.graph.cursor, m.graph.focus)
 	}
 }
+
+func TestHelpPage(t *testing.T) {
+	m := testModel(t, 80)
+	if out := m.View(); !strings.Contains(out, "? help") || strings.Contains(out, "reword message") {
+		t.Fatalf("footer:\n%s", out)
+	}
+	m = press(m, "?")
+	out := m.View()
+	for _, want := range []string{"General", "Time window", "Graph", "reword message", "Inspect", "? close"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("help page missing %q:\n%s", want, out)
+		}
+	}
+	for _, width := range []int{80, 50} {
+		next, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
+		for _, line := range strings.Split(next.(Model).View(), "\n") {
+			if w := lipgloss.Width(line); w > width {
+				t.Errorf("width %d: line %d wide: %q", width, w, line)
+			}
+		}
+	}
+	// Two columns fit in 80, so the page fits in 24 lines.
+	if next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24}); strings.Count(next.(Model).View(), "\n") > 23 {
+		t.Errorf("help page taller than 24 lines:\n%s", next.(Model).View())
+	}
+
+	// Page keys do nothing behind the help; ?, q and esc close it.
+	if m = press(m, "tab", "2"); !m.helpOpen || m.view != HeatmapView {
+		t.Errorf("keys reached the page: open %v, view %d", m.helpOpen, m.view)
+	}
+	if next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}); cmd != nil || next.(Model).helpOpen {
+		t.Error("q should close the help, not quit")
+	}
+	if next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc}); next.(Model).helpOpen {
+		t.Error("esc should close the help")
+	}
+	if m = press(m, "?"); m.helpOpen {
+		t.Error("? should close the help")
+	}
+	if _, cmd := press(m, "?").Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd == nil {
+		t.Error("ctrl+c should quit from the help")
+	}
+
+	// It opens over an inspect page too, and ? is plain text at the search prompt.
+	m = press(testModel(t, 80), "tab", "enter", "?")
+	if !m.helpOpen || !m.inspect.open {
+		t.Errorf("help over inspect: open %v, inspect %v", m.helpOpen, m.inspect.open)
+	}
+	if m = press(m, "q"); m.helpOpen || !m.inspect.open {
+		t.Error("closing the help should return to the inspect page")
+	}
+	m = press(testModel(t, 80), "3", "/", "?")
+	if m.helpOpen || m.graph.input != "?" {
+		t.Errorf("? at the prompt: open %v, input %q", m.helpOpen, m.graph.input)
+	}
+}

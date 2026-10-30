@@ -37,7 +37,7 @@
      ■ Dave <Dave@x.io>           1   3.8%        22  11.3%        28  12.3%
      ■ +1 other                   3  11.5%        18   9.3%        21   9.3%
 
- ←→ year · t latest · a/A author · tab files · q quit
+ ←→ year   a author   tab next page   ? help   q quit
 ```
 
 ## Features
@@ -113,6 +113,7 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 
 | Key | Action |
 | --- | --- |
+| `?` | Show or hide every key, grouped by page; the bottom line keeps only the main ones |
 | `tab`, `1`, `2`, `3`, `4` | Switch between the heatmap, the file ranking, the graph and the punch card |
 | `←` `→` / `h` `l` | Move the window one year back / forward (one window at a time when the terminal shows less than a year) |
 | `t` | Return to the latest window |

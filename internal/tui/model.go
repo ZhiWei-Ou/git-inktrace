@@ -34,7 +34,7 @@ type Options struct {
 	// Created is the date of the repository's first commit on any ref; the
 	// oldest counted commit stands in when it is zero.
 	Created time.Time
-	View   View   // page shown first
+	View    View // page shown first
 }
 
 // Model is the bubbletea model.
@@ -57,8 +57,9 @@ type Model struct {
 	scroll                    int // first visible row of the file ranking
 	cursor                    int // selected row of the file ranking
 
-	graph   graphState
-	inspect inspectState // details of the selected file or commit
+	graph    graphState
+	inspect  inspectState // details of the selected file or commit
+	helpOpen bool         // the help page covers the current page
 }
 
 // New creates a model showing the year up to today, or up to the latest
@@ -147,6 +148,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.view == GraphView && m.graph.confirm != nil && msg.String() != "ctrl+c" {
 		return m, m.confirmKey(msg.String())
+	}
+	if m.helpOpen {
+		if m.helpKey(msg.String()) {
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+	if msg.String() == "?" {
+		m.helpOpen = true
+		return m, nil
 	}
 	// Fast typing or key repeat can deliver several runes in one message.
 	if msg.Type == tea.KeyRunes && len(msg.Runes) > 1 && !msg.Paste {
