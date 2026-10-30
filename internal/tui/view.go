@@ -153,7 +153,8 @@ func (m Model) monthLabels() string {
 const heatmapChrome = 17
 
 // authorLegend is a table of authors in their colors with their commits and
-// share in the window and across the whole history, busiest first. Authors
+// share in the window and across the whole history, busiest first. The window
+// column is left out when the window already holds the whole history. Authors
 // without their own hue, or beyond the screen height, fold into one row.
 func (m Model) authorLegend() string {
 	t := m.theme
@@ -202,12 +203,22 @@ func (m Model) authorLegend() string {
 	for _, r := range rows {
 		labelWidth = max(labelWidth, ansi.StringWidth(r.label))
 	}
-	labelWidth = min(labelWidth, max(m.width-gutter-2-2*(numWidth+3), 8))
+	// When the window holds every commit both columns match, so keep one.
+	showWindow := windowTotal < allTotal
+	columns := 1
+	if showWindow {
+		columns = 2
+	}
+	labelWidth = min(labelWidth, max(m.width-gutter-2-columns*(numWidth+3), 8))
 
 	indent := strings.Repeat(" ", gutter)
 	var b strings.Builder
-	b.WriteString(indent + t.dim.Render(padRight("  author", labelWidth+2)+"   "+
-		padLeft("this window", numWidth)+"   "+padLeft("all history", numWidth)) + "\n")
+	header := padRight("  author", labelWidth+2)
+	if showWindow {
+		header += "   " + padLeft("this window", numWidth)
+	}
+	header += "   " + padLeft("all history", numWidth)
+	b.WriteString(indent + t.dim.Render(header) + "\n")
 	for _, r := range rows {
 		label := ansi.Truncate(r.label, labelWidth, "…")
 		style := t.text
@@ -221,8 +232,11 @@ func (m Model) authorLegend() string {
 			hue = len(authorHues) // the shared "others" hue
 		}
 		glyph := lipgloss.NewStyle().Foreground(t.authorColor(hue)).Render(cellGlyph)
-		b.WriteString(indent + glyph + " " + style.Render(label) + strings.Repeat(" ", labelWidth-ansi.StringWidth(label)) +
-			"   " + m.shareCell(r.window, windowTotal) + "   " + m.shareCell(r.all, allTotal) + "\n")
+		line := indent + glyph + " " + style.Render(label) + strings.Repeat(" ", labelWidth-ansi.StringWidth(label))
+		if showWindow {
+			line += "   " + m.shareCell(r.window, windowTotal)
+		}
+		b.WriteString(line + "   " + m.shareCell(r.all, allTotal) + "\n")
 	}
 	return b.String()
 }

@@ -43,7 +43,7 @@
 ## Features
 
 - **Contribution heatmap** — a GitHub-style calendar of weeks by weekdays, sized to fit the terminal (up to 53 weeks).
-- **Contribution share** — the legend lists each author with their email, plus commit count and share both in the visible time window and across the whole repository history, busiest first.
+- **Contribution share** — the legend lists each author with their email, plus commit count and share both in the visible time window and across the whole repository history, busiest first. When the window already holds every commit, only the history column is shown.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.

@@ -141,3 +141,18 @@ func TestShareColumns(t *testing.T) {
 		}
 	}
 }
+
+func TestShareColumnsSingleWindow(t *testing.T) {
+	now := time.Now()
+	commits := []gitlog.Commit{
+		{Author: "Alice", Email: "alice@example.com", Time: now},
+		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(0, -2, 0)},
+	}
+	m := New(stats.New(commits), Options{Top: 10})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	out := next.(Model).View()
+
+	if strings.Contains(out, "this window") || !strings.Contains(out, "all history") || !strings.Contains(out, "50.0%") {
+		t.Errorf("want only the all-history column:\n%s", out)
+	}
+}
