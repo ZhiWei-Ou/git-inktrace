@@ -82,15 +82,18 @@ git inktrace
 ```text
 git-inktrace [flags]
 
-  -C path     run as if started in path (default ".")
-  -all        include every branch, remote branch and tag, not only HEAD (stashes excluded)
-  -top int    number of files in the ranking, 0 for all (default 100)
-  -heatmap    open on the heatmap (default)
-  -files      open on the file ranking
-  -graph      open on the branch graph
-  -hours      open on the punch card of commit hours
-  -owners     open on the code ownership treemap
-  -version    print version and exit
+Flags:
+  -C path   run as if started in path (default ".")
+  -all      include every branch, remote branch and tag, not only HEAD (stashes excluded)
+  -top int  number of files in the ranking, 0 for all (default 100)
+  -version  print version and exit
+
+Start page (pick one):
+  -heatmap  open on the heatmap (default)
+  -files    open on the file ranking
+  -graph    open on the branch graph
+  -hours    open on the punch card of commit hours
+  -owners   open on the code ownership treemap
 ```
 
 Examples:
