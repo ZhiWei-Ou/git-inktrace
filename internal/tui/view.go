@@ -93,7 +93,7 @@ func (m Model) help() string {
 	case m.view == FilesView:
 		keys = "↑↓ select · enter inspect · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
 	case m.view == GraphView:
-		keys = "↑↓ select · enter inspect · o copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab hours · q quit"
+		keys = "↑↓ select · enter inspect · o copy hash · e reword · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab hours · q quit"
 	case m.view == HoursView:
 		keys = "←→ year · t latest · a/A author · tab heatmap · q quit"
 	}

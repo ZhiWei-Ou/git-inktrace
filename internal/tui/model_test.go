@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -651,5 +652,83 @@ func TestInspectCommit(t *testing.T) {
 	}
 	if strings.Contains(out, "wrong.go") {
 		t.Error("stale result shown")
+	}
+}
+
+func TestGraphReword(t *testing.T) {
+	now := time.Now()
+	commit := func(hash string) gitlog.GraphLine {
+		return gitlog.GraphLine{Graph: "*", Commit: &gitlog.GraphCommit{
+			Hash: hash[:7], FullHash: hash, Subject: "commit " + hash, Author: "Alice", Email: "a@x", Time: now,
+		}}
+	}
+	m := New(stats.New([]gitlog.Commit{{Author: "Alice", Email: "a@x", Time: now}}, nil), Options{View: GraphView})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	next, _ = next.(Model).Update(graphMsg{all: true, limit: graphPage, lines: []gitlog.GraphLine{commit("aaaaaaaaaa"), commit("bbbbbbbbbb")}})
+	m = press(next.(Model), "j")
+
+	var remotes []string
+	var checkErr error
+	checkReword = func(dir, hash string) ([]string, error) {
+		if hash != "bbbbbbbbbb" {
+			t.Errorf("checked %s", hash)
+		}
+		return remotes, checkErr
+	}
+	defer func() { checkReword = gitlog.CheckReword }()
+	check := func(m Model) Model {
+		t.Helper()
+		next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("e")})
+		if cmd == nil {
+			t.Fatal("e started nothing")
+		}
+		next, _ = next.(Model).Update(cmd())
+		return next.(Model)
+	}
+
+	checkErr = errors.New("the commit is not on the current branch")
+	if m = check(m); !strings.Contains(m.View(), "Cannot reword bbbbbbb: the commit is not on the current branch") {
+		t.Errorf("check error not shown:\n%s", m.View())
+	}
+
+	// A pushed commit asks first; anything but y cancels.
+	checkErr, remotes = nil, []string{"origin/main", "origin/dev", "fork/main"}
+	m = check(m)
+	if out := m.View(); m.graph.confirm == nil || !strings.Contains(out, "bbbbbbb is already on origin/main, origin/dev and 1 more") ||
+		!strings.Contains(out, "[y/N]") {
+		t.Fatalf("no confirmation:\n%s", out)
+	}
+	if m = press(m, "j"); m.graph.confirm != nil || m.graph.cursor != 1 || !strings.Contains(m.View(), "Reword cancelled") {
+		t.Errorf("j should cancel, not move: cursor %d\n%s", m.graph.cursor, m.View())
+	}
+	// y opens the editor.
+	editMessageCommand = func(dir, hash string) (*exec.Cmd, string, error) {
+		return nil, "", errors.New("no editor")
+	}
+	defer func() { editMessageCommand = gitlog.EditMessageCommand }()
+	if m = press(check(m), "y"); m.graph.confirm != nil || !strings.Contains(m.View(), "Cannot edit bbbbbbb: no editor") {
+		t.Errorf("y did not reach the editor:\n%s", m.View())
+	}
+
+	next, _ = m.Update(rewordedMsg{commit: m.graph.lines[1].Commit, err: gitlog.ErrMessageUnchanged})
+	if m = next.(Model); !strings.Contains(m.View(), "Message unchanged, bbbbbbb kept") {
+		t.Errorf("unchanged not shown:\n%s", m.View())
+	}
+
+	// After a reword the graph reloads, ignoring pages read before it, and
+	// selects the new commit.
+	next, cmd := m.Update(rewordedMsg{commit: m.graph.lines[1].Commit, hash: "cccccccccc"})
+	m = next.(Model)
+	if cmd == nil || !m.graph.loading || !strings.Contains(m.View(), "Reworded bbbbbbb → ccccccc") {
+		t.Fatalf("no reload after reword: %+v", m.graph)
+	}
+	next, _ = m.Update(graphMsg{seq: m.graph.seq - 1, all: true, limit: graphPage, lines: []gitlog.GraphLine{commit("aaaaaaaaaa")}})
+	if m = next.(Model); len(m.graph.lines) != 2 {
+		t.Error("stale page accepted")
+	}
+	next, _ = m.Update(graphMsg{seq: m.graph.seq, all: true, limit: graphPage,
+		lines: []gitlog.GraphLine{commit("dddddddddd"), {Graph: "|"}, commit("cccccccccc")}})
+	if m = next.(Model); m.graph.cursor != 2 || m.graph.focus != "" {
+		t.Errorf("cursor %d, focus %q", m.graph.cursor, m.graph.focus)
 	}
 }

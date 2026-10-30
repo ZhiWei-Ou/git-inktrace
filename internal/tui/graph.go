@@ -30,7 +30,11 @@ type graphState struct {
 	err     error
 	scroll  int
 	cursor  int    // index of the selected commit line
-	status  string // result of the last copy or search
+	status  string // result of the last copy, search or reword
+	seq     int    // bumped when history is rewritten, to drop older pages
+	focus   string // full hash to select once the graph loads
+
+	confirm *rewordConfirm // a reword waiting for y/n
 
 	typing bool       // the search prompt is open
 	input  string     // text at the search prompt
@@ -61,6 +65,7 @@ func (m *Model) receiveCopied(msg copiedMsg) {
 }
 
 type graphMsg struct {
+	seq   int
 	all   bool
 	limit int
 	lines []gitlog.GraphLine
@@ -79,17 +84,17 @@ func (m *Model) loadGraph() tea.Cmd {
 
 // fetchGraph reads the graph for the current scope and limit.
 func (m Model) fetchGraph() tea.Cmd {
-	dir, all, limit := m.opts.Dir, m.graph.all, m.graph.limit
+	dir, seq, all, limit := m.opts.Dir, m.graph.seq, m.graph.all, m.graph.limit
 	return func() tea.Msg {
 		lines, err := gitlog.Graph(dir, all, limit)
-		return graphMsg{all: all, limit: limit, lines: lines, err: err}
+		return graphMsg{seq: seq, all: all, limit: limit, lines: lines, err: err}
 	}
 }
 
 func (m *Model) receiveGraph(msg graphMsg) tea.Cmd {
 	g := &m.graph
-	if msg.all != g.all || msg.limit != g.limit {
-		return nil // a stale result after the scope changed
+	if msg.seq != g.seq || msg.all != g.all || msg.limit != g.limit {
+		return nil // a stale result after the scope or history changed
 	}
 	g.loading, g.loaded, g.err = false, true, msg.err
 	g.lines = msg.lines
@@ -100,6 +105,11 @@ func (m *Model) receiveGraph(msg graphMsg) tea.Cmd {
 		}
 	}
 	g.done = msg.err != nil || commits < msg.limit
+	for i, l := range g.lines {
+		if g.focus != "" && l.Commit != nil && l.Commit.FullHash == g.focus {
+			g.cursor, g.focus = i, ""
+		}
+	}
 	if !g.isCommit(g.cursor) {
 		g.cursor = g.nextCommit(g.cursor, 1)
 	}
@@ -162,8 +172,10 @@ func (m *Model) graphKey(key string) tea.Cmd {
 			return copyHash(g.lines[g.cursor].Commit.FullHash)
 		}
 		return nil
+	case "e":
+		return m.startReword()
 	case "a":
-		*g = graphState{all: !g.all, limit: graphPage, query: g.query, match: g.match}
+		*g = graphState{all: !g.all, limit: graphPage, seq: g.seq, query: g.query, match: g.match}
 		return m.loadGraph()
 	case "/":
 		g.typing, g.input, g.match = true, "", graphQuery{}
@@ -217,6 +229,10 @@ func (m Model) graphView() string {
 	}
 	if g.status != "" {
 		status = g.status
+	}
+	if g.confirm != nil {
+		b.WriteString(m.confirmPrompt() + "\n")
+		return b.String()
 	}
 	if g.typing {
 		b.WriteString(" " + t.accent.Render("/") + t.text.Render(g.input) + t.accent.Render("█") +

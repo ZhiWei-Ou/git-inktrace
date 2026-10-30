@@ -73,6 +73,7 @@ func run() error {
 		Branch: gitlog.Branch(root),
 		Top:    *top,
 		Dir:    root,
+		All:    *all,
 		View:   view,
 	})
 }

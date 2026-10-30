@@ -30,7 +30,7 @@ type theme struct {
 	// the last entry is the shared "others" hue.
 	cells [][5]lipgloss.Color
 
-	title, dim, text, accent, tab, activeTab, match lipgloss.Style
+	title, dim, text, accent, warn, tab, activeTab, match lipgloss.Style
 }
 
 func newTheme(dark bool) theme {
@@ -53,6 +53,7 @@ func newTheme(dark bool) theme {
 	t.dim = lipgloss.NewStyle().Foreground(lipgloss.Color(dim))
 	t.accent = lipgloss.NewStyle().Foreground(lipgloss.Color(accent))
 	t.title = t.accent.Bold(true)
+	t.warn = lipgloss.NewStyle().Foreground(lipgloss.Color(mark)).Bold(true)
 	t.tab = t.dim.Padding(0, 1)
 	t.activeTab = lipgloss.NewStyle().Bold(true).Padding(0, 1).
 		Foreground(lipgloss.Color(base)).Background(lipgloss.Color(accent))

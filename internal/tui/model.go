@@ -30,6 +30,7 @@ type Options struct {
 	Branch string
 	Top    int    // number of files in the ranking
 	Dir    string // repository root, read by the graph view
+	All    bool   // history covers every branch, remote branch and tag
 	View   View   // page shown first
 }
 
@@ -119,6 +120,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.receiveCopied(msg)
 	case inspectMsg:
 		m.receiveInspect(msg)
+	case rewordCheckMsg:
+		return m, m.receiveRewordCheck(msg)
+	case rewordedMsg:
+		return m, m.receiveReworded(msg)
+	case dataMsg:
+		m.receiveData(msg)
 	}
 	return m, nil
 }
@@ -134,6 +141,9 @@ func (m *Model) setView(v View) tea.Cmd {
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.view == GraphView && m.graph.typing && msg.String() != "ctrl+c" {
 		return m, m.searchKey(msg)
+	}
+	if m.view == GraphView && m.graph.confirm != nil && msg.String() != "ctrl+c" {
+		return m, m.confirmKey(msg.String())
 	}
 	// Fast typing or key repeat can deliver several runes in one message.
 	if msg.Type == tea.KeyRunes && len(msg.Runes) > 1 && !msg.Paste {
