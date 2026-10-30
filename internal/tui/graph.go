@@ -180,6 +180,9 @@ func (m *Model) graphKey(key string) tea.Cmd {
 	case "/":
 		g.typing, g.input, g.match = true, "", graphQuery{}
 		return nil
+	case "esc":
+		g.clearSearch()
+		return nil
 	case "n":
 		return m.jumpMatch(g.cursor+1, 1)
 	case "N":
@@ -236,7 +239,7 @@ func (m Model) graphView() string {
 	}
 	if g.typing {
 		b.WriteString(" " + t.accent.Render("/") + t.text.Render(g.input) + t.accent.Render("█") +
-			t.dim.Render("  @commit @author @email · tab complete · enter search · esc cancel") + "\n")
+			t.dim.Render("  @commit @author @email · tab complete · enter search · esc clear") + "\n")
 		return b.String()
 	}
 	// The scope leads the status line so pressing a visibly changes it, even

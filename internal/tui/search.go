@@ -50,7 +50,8 @@ func (q graphQuery) match(c *gitlog.GraphCommit) bool {
 }
 
 // searchKey edits the search prompt, highlighting matches as the text
-// changes; tab completes a keyword, enter searches and esc closes the prompt.
+// changes; tab completes a keyword, enter searches and esc closes the prompt
+// along with the highlight.
 func (m *Model) searchKey(msg tea.KeyMsg) tea.Cmd {
 	g := &m.graph
 	defer func() {
@@ -73,18 +74,23 @@ func (m *Model) searchKey(msg tea.KeyMsg) tea.Cmd {
 		g.input = completeField(g.input)
 	case tea.KeyEsc:
 		g.typing = false
-		g.match = parseQuery(g.query) // back to the last search
+		g.clearSearch()
 	case tea.KeyEnter:
 		g.typing = false
 		g.query = strings.TrimSpace(g.input)
 		g.match = parseQuery(g.query)
 		if g.match.empty() {
-			g.query, g.status = "", "" // an empty search clears the highlight
+			g.clearSearch() // an empty search clears the highlight
 			return nil
 		}
 		return m.jumpMatch(g.cursor, 1)
 	}
 	return nil
+}
+
+// clearSearch drops the last search, its highlight and its match count.
+func (g *graphState) clearSearch() {
+	g.query, g.match, g.status = "", graphQuery{}, ""
 }
 
 // completeField completes a keyword prefix such as "@com" at the end of s.

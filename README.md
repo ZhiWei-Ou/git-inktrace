@@ -120,7 +120,7 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | `enter` | Inspect the selected file (the commits that touched it) or commit (its full message and the files it changed); `q` or `esc` goes back |
 | `o` | Copy the selected commit's full hash to the clipboard (graph) |
 | `e` | Reword the selected commit's message in your editor (graph, current branch only); `y` confirms when the commit is already pushed |
-| `/` | Search the graph, highlighting matches as you type; `tab` completes `@commit`, `@author` or `@email`, `enter` jumps to the first match from the selection, `esc` closes the prompt, an empty search clears the highlight |
+| `/` | Search the graph, highlighting matches as you type; `tab` completes `@commit`, `@author` or `@email`, `enter` jumps to the first match from the selection, `esc` closes the prompt and clears the highlight, as does an empty search; outside the prompt `esc` clears the last search |
 | `n` / `N` | Jump to the next / previous matching commit (graph) |
 | `pgup` `pgdn`, `g` `G` | Page, or jump to the top / bottom of the file ranking or the graph |
 | `a` (graph) | Switch the graph between all branches (default) and the current branch |

@@ -480,14 +480,24 @@ func TestGraphSearch(t *testing.T) {
 		t.Errorf("empty search kept %q", m.graph.query)
 	}
 
-	// The prompt highlights as you type, and esc goes back to the last search.
+	// The prompt highlights as you type, and esc leaves it without any
+	// highlight, also dropping the last search.
 	m = search(m, "add")
 	if m = press(m, "/", "fix"); !strings.Contains(m.graphLine(lines[3], false), mark) {
 		t.Error("typing does not highlight")
 	}
 	if m = key(m, tea.KeyEsc); strings.Contains(m.graphLine(lines[3], false), mark) ||
-		!strings.Contains(m.graphLine(lines[0], false), m.theme.match.Render("Add")) {
-		t.Error("esc should restore the last search's highlight")
+		strings.Contains(m.graphLine(lines[0], false), m.theme.match.Render("Add")) || m.graph.query != "" {
+		t.Error("esc should clear the highlight")
+	}
+	// Outside the prompt esc clears the last search too, and n finds nothing.
+	m = search(m, "add")
+	if m = key(m, tea.KeyEsc); strings.Contains(m.graphLine(lines[0], false), m.theme.match.Render("Add")) ||
+		strings.Contains(m.View(), "/add") {
+		t.Error("esc after a search should clear the highlight")
+	}
+	if cursor := m.graph.cursor; press(m, "n").graph.cursor != cursor {
+		t.Error("n moved after the search was cleared")
 	}
 
 	// Tab completes a unique keyword prefix.
