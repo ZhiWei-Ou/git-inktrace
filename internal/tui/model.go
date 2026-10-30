@@ -3,6 +3,7 @@
 package tui
 
 import (
+	"slices"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -21,7 +22,6 @@ const (
 	GraphView
 	HoursView
 	OwnersView
-	viewCount
 )
 
 const maxWeeks = 53
@@ -42,6 +42,9 @@ type Options struct {
 	Commits  []gitlog.Commit
 	Tracked  []string // paths in HEAD, for the reloaded ranking
 	Branches int      // local and remote branches; many start the graph on the current one
+	// Authors keeps only the authors matching one of these patterns, as
+	// stats.Data.Filter does, and hides the pages about the whole team.
+	Authors []string
 }
 
 // allBranchesLimit is the most branches the graph shows all of at first.
@@ -55,12 +58,11 @@ type Model struct {
 
 	width, height int
 	view          View
-	author        int       // stats.AllAuthors or an author index
 	end           time.Time // last day of the calendar
 
 	cal stats.Calendar
-	// Commits per author, ignoring the author filter: in the calendar month
-	// of the window's last day, and in the whole window.
+	// Commits per author in the calendar month of the window's last day,
+	// and in the whole window.
 	monthShares, windowShares []int
 	punch                     stats.PunchCard
 	files                     []stats.FileStat
@@ -81,16 +83,15 @@ type Model struct {
 // commit when the repository has been idle for longer than that.
 func New(data *stats.Data, opts Options) Model {
 	m := Model{
-		data:   data,
+		data:   data.Filter(opts.Authors),
 		opts:   opts,
 		theme:  newTheme(lipgloss.HasDarkBackground()),
 		width:  80,
 		height: 24,
 		view:   opts.View,
-		author: stats.AllAuthors,
-		end:    defaultEnd(data),
 		graph:  graphState{all: opts.Branches <= allBranchesLimit, limit: graphPage},
 	}
+	m.end = defaultEnd(m.data)
 	if len(opts.Commits) > 0 {
 		m.commits, m.tracked = opts.Commits, opts.Tracked
 		m.prepareIndex()
@@ -161,6 +162,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// filtered reports whether the history is narrowed to some authors.
+func (m Model) filtered() bool { return len(m.opts.Authors) > 0 }
+
+// views lists the pages in tab order; the author filter leaves out the
+// hours and owners, which compare the whole team.
+func (m Model) views() []View {
+	if m.filtered() {
+		return []View{HeatmapView, FilesView, GraphView}
+	}
+	return []View{HeatmapView, FilesView, GraphView, HoursView, OwnersView}
+}
+
+// stepView moves n pages along the tabs, wrapping around.
+func (m *Model) stepView(n int) tea.Cmd {
+	vs := m.views()
+	i := slices.Index(vs, m.view)
+	return m.setView(vs[(i+n+len(vs))%len(vs)])
+}
+
 func (m *Model) setView(v View) tea.Cmd {
 	m.view = v
 	switch v {
@@ -214,28 +234,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m, m.openInspect()
 	case "tab":
-		return m, m.setView((m.view + 1) % viewCount)
+		return m, m.stepView(1)
 	case "shift+tab":
-		return m, m.setView((m.view + viewCount - 1) % viewCount)
-	case "1":
-		return m, m.setView(HeatmapView)
-	case "2":
-		return m, m.setView(FilesView)
-	case "3":
-		return m, m.setView(GraphView)
-	case "4":
-		return m, m.setView(HoursView)
-	case "5":
-		return m, m.setView(OwnersView)
-	case "a", "A":
-		if m.view == GraphView {
-			return m, m.graphKey(msg.String()) // a switches the graph's branches
+		return m, m.stepView(-1)
+	case "1", "2", "3", "4", "5":
+		if i, vs := int(msg.String()[0]-'1'), m.views(); i < len(vs) {
+			return m, m.setView(vs[i])
 		}
-		if msg.String() == "a" {
-			m.cycleAuthor(1)
-		} else {
-			m.cycleAuthor(-1)
-		}
+		return m, nil
 	case "left", "h", "right", "l", "t":
 		if m.view == GraphView {
 			return m, nil // the graph has no time window
@@ -261,23 +267,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	m.refresh()
 	return m, nil
-}
-
-func (m *Model) cycleAuthor(step int) {
-	n := len(m.data.Authors)
-	if n == 0 {
-		return
-	}
-	// Positions 0..n-1 are authors and n is "all".
-	pos := m.author
-	if pos == stats.AllAuthors {
-		pos = n
-	}
-	pos = (pos + step + n + 1) % (n + 1)
-	if pos == n {
-		pos = stats.AllAuthors
-	}
-	m.author = pos
 }
 
 // shiftYears moves the calendar window by whole years, or by whole windows
@@ -348,15 +337,15 @@ func follow(cursor, scroll, rows, n int) int {
 }
 
 // refresh recomputes the calendar, punch card and ranking for the current
-// window and filter.
+// window.
 func (m *Model) refresh() {
 	weeks := min(max((m.width-gutter)/cellWidth, 1), maxWeeks)
-	m.cal = m.data.Calendar(m.end, weeks, m.author)
+	m.cal = m.data.Calendar(m.end, weeks)
 	monthStart := time.Date(m.cal.End.Year(), m.cal.End.Month(), 1, 0, 0, 0, 0, time.Local)
 	m.monthShares = m.data.AuthorCommits(monthStart, m.cal.End)
 	m.windowShares = m.data.AuthorCommits(m.cal.Start, m.cal.End)
-	m.punch = m.data.PunchCard(m.cal.Start, m.cal.End, m.author)
-	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.author, m.opts.Top)
+	m.punch = m.data.PunchCard(m.cal.Start, m.cal.End)
+	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.opts.Top)
 	m.clampScroll()
 	m.refreshOwners()
 }

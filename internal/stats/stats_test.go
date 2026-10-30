@@ -74,10 +74,33 @@ func TestAuthorIdentities(t *testing.T) {
 	}
 }
 
+func TestFilter(t *testing.T) {
+	d := sample()
+	for pattern, want := range map[string]string{"ALICE": "[0]", "example.com": "[0 1]", "bob@": "[1]", "zed": "[]"} {
+		if got := fmt.Sprint(d.Match(pattern)); got != want {
+			t.Errorf("Match(%q) = %s, want %s", pattern, got, want)
+		}
+	}
+	if d.Filter(nil) != d {
+		t.Error("no patterns did not keep the data")
+	}
+	bob := d.Filter([]string{"zed", "bob"})
+	if len(bob.Authors) != 1 || bob.Authors[0].Name != "Bob" || bob.Len() != 2 {
+		t.Errorf("filtered to %+v, %d commits", bob.Authors, bob.Len())
+	}
+	if bob.AuthorOf("Bob", "bob@example.com") != 0 || bob.AuthorOf("Alice", "alice@example.com") != -1 {
+		t.Error("AuthorOf after filter wrong")
+	}
+	// Patterns join: both authors stay in rank order.
+	if both := d.Filter([]string{"bob", "Alice@"}); len(both.Authors) != 2 || both.Authors[0].Name != "Alice" || both.Len() != 5 {
+		t.Errorf("two patterns kept %+v", both.Authors)
+	}
+}
+
 func TestCalendar(t *testing.T) {
 	d := sample()
 	// 2026-03-12 is a Thursday.
-	cal := d.Calendar(at(2026, 3, 12, 15), 2, AllAuthors)
+	cal := d.Calendar(at(2026, 3, 12, 15), 2)
 	if !cal.Start.Equal(at(2026, 3, 1, 0)) || cal.Start.Weekday() != time.Sunday {
 		t.Fatalf("start = %v", cal.Start)
 	}
@@ -100,20 +123,20 @@ func TestCalendar(t *testing.T) {
 		}
 	}
 
-	bob := d.Calendar(at(2026, 3, 12, 0), 2, 1)
+	bob := d.Filter([]string{"bob"}).Calendar(at(2026, 3, 12, 0), 2)
 	if bob.Total != 2 || bob.Weeks[1][time.Tuesday].Total != 1 || bob.Weeks[0][time.Sunday].Total != 0 {
 		t.Errorf("bob calendar = %+v", bob)
 	}
 
 	// Commits before the first week are excluded.
-	if one := d.Calendar(at(2026, 3, 12, 0), 1, AllAuthors); one.Total != 4 {
+	if one := d.Calendar(at(2026, 3, 12, 0), 1); one.Total != 4 {
 		t.Errorf("one week total = %d, want 4", one.Total)
 	}
 }
 
 func TestPunchCard(t *testing.T) {
 	d := sample()
-	card := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 31, 0), AllAuthors)
+	card := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 31, 0))
 	if card.Total != 5 || card.Max != 1 {
 		t.Errorf("total = %d, max = %d", card.Total, card.Max)
 	}
@@ -134,10 +157,10 @@ func TestPunchCard(t *testing.T) {
 		t.Errorf("zones = %v", card.Zones)
 	}
 
-	if bob := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 31, 0), 1); bob.Total != 2 || bob.Slots[time.Tuesday][8].Top != 1 {
+	if bob := d.Filter([]string{"bob"}).PunchCard(at(2026, 3, 1, 0), at(2026, 3, 31, 0)); bob.Total != 2 || bob.Slots[time.Tuesday][8].Top != 0 {
 		t.Errorf("bob card = %+v", bob)
 	}
-	if early := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 9, 0), AllAuthors); early.Total != 1 {
+	if early := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 9, 0)); early.Total != 1 {
 		t.Errorf("window total = %d, want 1", early.Total)
 	}
 }
@@ -147,7 +170,7 @@ func TestPunchCardUsesAuthorClock(t *testing.T) {
 	// Saturday 23:30 in Tokyo, whatever the local zone is.
 	when := time.Date(2026, 3, 14, 23, 30, 0, 0, tokyo)
 	d := New([]gitlog.Commit{{Author: "Aki", Email: "aki@example.jp", Time: when}}, nil)
-	card := d.PunchCard(when.AddDate(0, 0, -2), when.AddDate(0, 0, 2), AllAuthors)
+	card := d.PunchCard(when.AddDate(0, 0, -2), when.AddDate(0, 0, 2))
 	if card.Slots[time.Saturday][23].Total != 1 {
 		t.Errorf("commit not at Sat 23: %+v", card.Slots)
 	}
@@ -163,7 +186,7 @@ func TestAuthorCommits(t *testing.T) {
 
 func TestFileRank(t *testing.T) {
 	d := sample()
-	rank := d.FileRank(at(2026, 3, 1, 0), at(2026, 3, 31, 0), AllAuthors, 0)
+	rank := d.FileRank(at(2026, 3, 1, 0), at(2026, 3, 31, 0), 0)
 	if len(rank) != 3 {
 		t.Fatalf("got %d files: %+v", len(rank), rank)
 	}
@@ -175,11 +198,11 @@ func TestFileRank(t *testing.T) {
 		t.Errorf("order = %s, %s", rank[1].Path, rank[2].Path)
 	}
 
-	ranged := d.FileRank(at(2026, 3, 10, 0), at(2026, 3, 10, 0), 1, 0)
+	ranged := d.Filter([]string{"bob"}).FileRank(at(2026, 3, 10, 0), at(2026, 3, 10, 0), 0)
 	if len(ranged) != 1 || ranged[0].Path != "a.go" || ranged[0].Commits != 1 {
 		t.Errorf("ranged = %+v", ranged)
 	}
-	if limited := d.FileRank(at(2026, 1, 1, 0), at(2026, 12, 31, 0), AllAuthors, 1); len(limited) != 1 {
+	if limited := d.FileRank(at(2026, 1, 1, 0), at(2026, 12, 31, 0), 1); len(limited) != 1 {
 		t.Errorf("limit ignored: %d", len(limited))
 	}
 }
@@ -192,14 +215,14 @@ func TestFileCommits(t *testing.T) {
 		{Hash: "c1", Subject: "start", Author: "A", Email: "a@x", Time: at(2026, 3, 1, 0), Files: []gitlog.FileChange{fc("old.go", 9, 0)}},
 	}, nil)
 	var got []string
-	for _, c := range d.FileCommits("new.go", at(2026, 1, 1, 0), at(2026, 12, 31, 0), AllAuthors) {
+	for _, c := range d.FileCommits("new.go", at(2026, 1, 1, 0), at(2026, 12, 31, 0)) {
 		got = append(got, fmt.Sprintf("%s %s %d +%d -%d", c.Hash, c.Subject, c.Author, c.Added, c.Deleted))
 	}
 	// The history follows the rename back to the old path.
 	if want := []string{"c3 edit 0 +2 -1", "c2 move 1 +0 -0", "c1 start 0 +9 -0"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("got %q, want %q", got, want)
 	}
-	if n := len(d.FileCommits("new.go", at(2026, 3, 2, 0), at(2026, 3, 3, 0), 1)); n != 1 {
+	if n := len(d.Filter([]string{"b@x"}).FileCommits("new.go", at(2026, 3, 2, 0), at(2026, 3, 3, 0))); n != 1 {
 		t.Errorf("date and author filter: %d commits, want 1", n)
 	}
 }
@@ -218,7 +241,7 @@ func TestFileRankFollowsRenames(t *testing.T) {
 		{Author: "A", Email: "a@x", Time: at(2026, 2, 28, 0), Files: []gitlog.FileChange{fc("gone.go", 0, 4)}},
 	}, []string{"new/a.go", "old/a.go"})
 
-	rank := d.FileRank(at(2026, 1, 1, 0), at(2026, 12, 31, 0), AllAuthors, 0)
+	rank := d.FileRank(at(2026, 1, 1, 0), at(2026, 12, 31, 0), 0)
 	if len(rank) != 3 {
 		t.Fatalf("got %+v", rank)
 	}

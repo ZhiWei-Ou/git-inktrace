@@ -10,9 +10,6 @@ import (
 	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
 )
 
-// AllAuthors selects every author in Calendar and FileRank.
-const AllAuthors = -1
-
 // Author is one contributor, possibly committing under several names or
 // emails, ordered by commit count.
 type Author struct {
@@ -116,6 +113,58 @@ func (d *Data) AuthorOf(name, email string) int {
 	return -1
 }
 
+// Match returns the authors who committed under a name or email containing
+// pattern, ignoring case, in rank order.
+func (d *Data) Match(pattern string) []int {
+	pattern = strings.ToLower(pattern)
+	found := map[int]bool{}
+	for k, id := range d.identities {
+		if _, ident, ok := strings.Cut(k, ":"); ok && strings.Contains(strings.ToLower(ident), pattern) {
+			found[id] = true
+		}
+	}
+	ids := make([]int, 0, len(found))
+	for id := range found {
+		ids = append(ids, id)
+	}
+	sort.Ints(ids)
+	return ids
+}
+
+// Filter keeps the commits of the authors matching any of patterns, as
+// Match does, renumbering the authors in rank order. No patterns keep
+// everything.
+func (d *Data) Filter(patterns []string) *Data {
+	if len(patterns) == 0 {
+		return d
+	}
+	keep := map[int]int{} // old author -> new
+	for _, p := range patterns {
+		for _, id := range d.Match(p) {
+			keep[id] = 0
+		}
+	}
+	out := &Data{tracked: d.tracked, identities: map[string]int{}}
+	for id, a := range d.Authors {
+		if _, ok := keep[id]; ok {
+			keep[id] = len(out.Authors)
+			out.Authors = append(out.Authors, a)
+		}
+	}
+	for _, c := range d.commits {
+		if id, ok := keep[c.author]; ok {
+			c.author = id
+			out.commits = append(out.commits, c)
+		}
+	}
+	for k, id := range d.identities {
+		if n, ok := keep[id]; ok {
+			out.identities[k] = n
+		}
+	}
+	return out
+}
+
 // Len returns the number of commits.
 func (d *Data) Len() int { return len(d.commits) }
 
@@ -159,8 +208,7 @@ type Calendar struct {
 }
 
 // Calendar builds a grid of the given number of weeks ending on end's date.
-// Only commits by author are counted unless author is AllAuthors.
-func (d *Data) Calendar(end time.Time, weeks, author int) Calendar {
+func (d *Data) Calendar(end time.Time, weeks int) Calendar {
 	if weeks < 1 {
 		weeks = 1
 	}
@@ -174,9 +222,6 @@ func (d *Data) Calendar(end time.Time, weeks, author int) Calendar {
 		}
 	}
 	for _, c := range d.commits {
-		if author != AllAuthors && c.author != author {
-			continue
-		}
 		n := daysBetween(start, c.day)
 		if n < 0 || c.day.After(end) {
 			continue
@@ -222,14 +267,13 @@ type PunchCard struct {
 }
 
 // PunchCard builds the punch card of the commits between from and to
-// (inclusive dates), counting only author's commits unless author is
-// AllAuthors.
-func (d *Data) PunchCard(from, to time.Time, author int) PunchCard {
+// (inclusive dates).
+func (d *Data) PunchCard(from, to time.Time) PunchCard {
 	from, to = midnight(from.Local()), midnight(to.Local())
 	card := PunchCard{ByAuthor: map[int]*[7][24]int{}, Zones: map[int]int{}}
 	var byAuthor [7][24]map[int]int
 	for _, c := range d.commits {
-		if author != AllAuthors && c.author != author || c.day.Before(from) || c.day.After(to) {
+		if c.day.Before(from) || c.day.After(to) {
 			continue
 		}
 		wd, h := c.clock.Weekday(), c.clock.Hour()
@@ -306,13 +350,10 @@ type FileStat struct {
 
 // FileRank returns the files changed in the most commits between from and to
 // (inclusive dates), limited to limit entries when limit > 0.
-func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
+func (d *Data) FileRank(from, to time.Time, limit int) []FileStat {
 	from, to = midnight(from.Local()), midnight(to.Local())
 	files := map[string]*FileStat{}
 	for _, c := range d.commits {
-		if author != AllAuthors && c.author != author {
-			continue
-		}
 		if c.day.Before(from) || c.day.After(to) {
 			continue
 		}
@@ -367,11 +408,11 @@ type FileCommit struct {
 // FileCommits returns the commits touching the file at its latest path
 // between from and to (inclusive dates), newest first, counted like
 // FileRank.
-func (d *Data) FileCommits(path string, from, to time.Time, author int) []FileCommit {
+func (d *Data) FileCommits(path string, from, to time.Time) []FileCommit {
 	from, to = midnight(from.Local()), midnight(to.Local())
 	var out []FileCommit
 	for _, c := range d.commits {
-		if author != AllAuthors && c.author != author || c.day.Before(from) || c.day.After(to) {
+		if c.day.Before(from) || c.day.After(to) {
 			continue
 		}
 		for _, f := range c.files {

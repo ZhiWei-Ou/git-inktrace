@@ -20,7 +20,7 @@ import (
 	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
 )
 
-func testModel(t *testing.T, width int) Model {
+func testModel(t *testing.T, width int, authors ...string) Model {
 	t.Helper()
 	now := time.Now()
 	var commits []gitlog.Commit
@@ -32,7 +32,7 @@ func testModel(t *testing.T, width int) Model {
 			Files: []gitlog.FileChange{{Path: "dir/file" + string(rune('a'+i%5)) + ".go", Added: i, Deleted: 1}},
 		})
 	}
-	m := New(stats.New(commits, nil), Options{Repo: "demo", Branch: "main", Top: 100})
+	m := New(stats.New(commits, nil), Options{Repo: "demo", Branch: "main", Top: 100, Authors: authors})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
 	return next.(Model)
 }
@@ -181,18 +181,33 @@ func TestYearNavigation(t *testing.T) {
 }
 
 func TestAuthorFilter(t *testing.T) {
-	m := testModel(t, 120)
-	m = press(m, "a")
-	if m.author != 0 || m.cal.Total >= 40 {
-		t.Errorf("author filter: author %d, total %d", m.author, m.cal.Total)
+	all := testModel(t, 120)
+	m := testModel(t, 120, "alice", "CAROL@")
+	if len(m.data.Authors) != 2 || m.cal.Total == 0 || m.cal.Total >= all.cal.Total {
+		t.Errorf("filtered to %+v, total %d of %d", m.data.Authors, m.cal.Total, all.cal.Total)
 	}
-	m = press(m, "A", "A")
-	if m.author != 2 {
-		t.Errorf("reverse cycle: author %d, want 2", m.author)
+	out := ansi.Strip(m.View())
+	for _, want := range []string{"Heatmap", "Graph", "■ Alice  ■ Carol"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
 	}
-	m = press(m, "a")
-	if m.author != stats.AllAuthors {
-		t.Errorf("cycle back: author %d", m.author)
+	if strings.Contains(out, "Hours") || strings.Contains(out, "Owners") || strings.Contains(out, "Bob") {
+		t.Errorf("hidden page or author shown:\n%s", out)
+	}
+	// Tabs and digits only reach the pages shown.
+	if m = press(m, "tab", "tab", "tab"); m.view != HeatmapView {
+		t.Errorf("tab wrapped to view %d", m.view)
+	}
+	if m = press(m, "4", "5"); m.view != HeatmapView {
+		t.Errorf("hidden page %d opened", m.view)
+	}
+	if m = press(m, "3"); m.view != GraphView {
+		t.Errorf("3 opened view %d", m.view)
+	}
+	help := ansi.Strip(press(m, "?").View())
+	if !strings.Contains(help, "1 – 3") || strings.Contains(help, "Owners") || strings.Contains(help, "owners") {
+		t.Errorf("help shows hidden pages:\n%s", help)
 	}
 }
 
@@ -234,12 +249,7 @@ func TestHoursView(t *testing.T) {
 			}
 		}
 	}
-	// The author filter narrows the card like the calendar.
-	m := press(testModel(t, 100), "4", "a")
-	if m.punch.Total != m.cal.Total || m.punch.Total >= press(testModel(t, 100), "4").punch.Total {
-		t.Errorf("filtered punch card total %d, calendar %d", m.punch.Total, m.cal.Total)
-	}
-	if m = press(m, "tab"); m.view != OwnersView {
+	if m := press(testModel(t, 100), "4", "tab"); m.view != OwnersView {
 		t.Errorf("tab from hours: view %d", m.view)
 	}
 }
@@ -487,8 +497,8 @@ func TestGraphView(t *testing.T) {
 
 	// Switching scope reloads from scratch, and stale results are dropped.
 	m = press(m, "a")
-	if m.graph.all || !m.graph.loading || len(m.graph.lines) != 0 || m.author != stats.AllAuthors {
-		t.Errorf("a did not switch to the current branch: %+v, author %d", m.graph, m.author)
+	if m.graph.all || !m.graph.loading || len(m.graph.lines) != 0 {
+		t.Errorf("a did not switch to the current branch: %+v", m.graph)
 	}
 	next, _ = m.Update(graphMsg{all: true, limit: graphPage, lines: lines})
 	if next.(Model).graph.loaded {
@@ -1159,19 +1169,6 @@ func TestOwnersView(t *testing.T) {
 	m = press(m, "enter", "enter")
 	if !m.inspect.open || m.inspect.path != "src/ui/view.go" || len(m.inspect.commits) != 6 {
 		t.Errorf("inspect %+v", m.inspect)
-	}
-
-	// The author filter narrows the map; a directory gone from it falls
-	// back to the root.
-	m = press(ownersModel(t, 100, 30), "enter", "j")
-	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	m = press(next.(Model), "a") // Alice
-	if out := ansi.Strip(m.View()); strings.Contains(out, "docs/guide") || !strings.Contains(out, "sole author") {
-		t.Errorf("filtered map:\n%s", out)
-	}
-	m = press(ownersModel(t, 100, 30), "j", "enter") // docs/guide
-	if m = press(m, "a"); m.owners.dir != "" {
-		t.Errorf("dir %q kept though Alice never touched it", m.owners.dir)
 	}
 }
 

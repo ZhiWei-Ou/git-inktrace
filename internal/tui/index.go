@@ -59,7 +59,7 @@ func (m *Model) prepareIndex() {
 // processes and builds the full statistics, ticking the progress meanwhile.
 func (m Model) indexCmd() tea.Cmd {
 	s := m.index
-	dir, commits, tracked, gen := m.opts.Dir, m.commits, m.tracked, s.gen
+	dir, commits, tracked, authors, gen := m.opts.Dir, m.commits, m.tracked, m.opts.Authors, s.gen
 	read := func() tea.Msg {
 		var todo []gitlog.Commit
 		for _, c := range commits {
@@ -82,7 +82,7 @@ func (m Model) indexCmd() tea.Cmd {
 				cache[c.Hash] = s.cache[c.Hash]
 			}
 		}
-		return indexedMsg{gen: gen, data: stats.New(withFiles(commits, cache), tracked), cache: cache}
+		return indexedMsg{gen: gen, data: stats.New(withFiles(commits, cache), tracked).Filter(authors), cache: cache}
 	}
 	return tea.Batch(read, indexTick(gen))
 }
@@ -146,7 +146,7 @@ func (m *Model) receiveData(msg dataMsg) tea.Cmd {
 		return nil
 	}
 	m.commits, m.tracked = msg.commits, msg.tracked
-	m.data = stats.New(withFiles(m.commits, m.index.cache), m.tracked)
+	m.data = stats.New(withFiles(m.commits, m.index.cache), m.tracked).Filter(m.opts.Authors)
 	m.refresh()
 	m.prepareIndex()
 	return m.indexCmd()

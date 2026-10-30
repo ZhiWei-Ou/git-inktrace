@@ -37,7 +37,7 @@
      ■ Dave <Dave@x.io>           1   3.8%        22  11.3%        28  12.3%
      ■ +1 other                   3  11.5%        18   9.3%        21   9.3%
 
- ←→ year   a author   tab next page   ? help   q quit
+ ←→ year   tab next page   ? help   q quit
 ```
 
 ## Features
@@ -52,7 +52,7 @@
 - **Punch card** — commits by weekday and hour, read on each author's own clock, so a commit made at 23:00 in Tokyo counts at 23:00 wherever you look at it. Each slot takes the color of its busiest author and grows with how busy it was; weekday totals sit on the right and an hourly profile below, all centered. Above it, aligned columns show the peak slot, the busiest hour, the shares of commits made after hours (weekdays before 9:00 or from 18:00) and on weekends, and the main time zone with how many there are. Below it, each author gets a row with their own hourly profile, busiest hour and after-hours and weekend shares.
 - **Ownership treemap** — the work tree as nested tiles sized by file changes (or lines changed, with `w`) in the window, laid out with the squarified algorithm. Each tile takes the color of the author who changed it most, deeper the larger their share, and names that owner. Below the map, the selected file or directory shows its changes, lines, authors, owner and bus factor — how few authors made over half of the changes — with directories touched by a single author flagged. `enter` opens a directory or a file's commits and `esc` goes back up; directory chains like `src/main/java` are one tile, deleted files are left out, and tiles too small to label fold into one.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
-- **Focus on one author** — filter the heatmap, the file ranking and the punch card to a single contributor.
+- **Focus on some authors** — `-author` narrows the heatmap, the file ranking and their inspect pages to the authors whose name or email contains one of the given names, and fades everyone else's commits in the graph. The punch card and the treemap compare the whole team, so they are hidden while it is set.
 - **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
 - **Opens fast on large histories** — the heatmap, punch card and graph need only commit headers and open at once; the per-file changes behind the file ranking load in the background, split over one `git diff-tree` process per CPU, while the Files page shows the progress. After a reword, only the rewritten commits are read again.
 - **Works as a git subcommand** — put `git-inktrace` on your `PATH` and run `git inktrace` in any repository.
@@ -83,17 +83,20 @@ git inktrace
 git-inktrace [flags]
 
 Flags:
-  -C path   run as if started in path (default ".")
-  -all      include every branch, remote branch and tag, not only HEAD (stashes excluded)
-  -top int  number of files in the ranking, 0 for all (default 100)
-  -version  print version and exit
+  -C path        run as if started in path (default ".")
+  -all           include every branch, remote branch and tag, not only HEAD (stashes excluded)
+  -top int       number of files in the ranking, 0 for all (default 100)
+  -version       print version and exit
+
+Filter:
+  -author names  show only authors whose name or email contains one of the names, separated by ';' (hides hours and owners)
 
 Start page (pick one):
-  -heatmap  open on the heatmap (default)
-  -files    open on the file ranking
-  -graph    open on the branch graph
-  -hours    open on the punch card of commit hours
-  -owners   open on the code ownership treemap
+  -heatmap       open on the heatmap (default)
+  -files         open on the file ranking
+  -graph         open on the branch graph
+  -hours         open on the punch card of commit hours
+  -owners        open on the code ownership treemap
 ```
 
 Examples:
@@ -105,6 +108,7 @@ git inktrace -top 0               # rank every changed file
 git inktrace -graph               # open straight on the branch graph
 git inktrace -hours               # see when the team commits
 git inktrace -owners              # see who owns which part of the code
+git inktrace -author 'alice;bob'  # only Alice's and Bob's commits
 ```
 
 Authors are merged the way `git shortlog` groups them, plus by email: commits that share an email (case-insensitive) or a name belong to one author. To join identities that share neither, add a [`.mailmap`](https://git-scm.com/docs/gitmailmap) file to the repository, for example:
@@ -121,10 +125,9 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | Key | Action |
 | --- | --- |
 | `?` | Show or hide every key, grouped by page; the bottom line keeps only the main ones |
-| `tab`, `1` – `5` | Switch between the heatmap, the file ranking, the graph, the punch card and the ownership treemap |
+| `tab`, `1` – `5` | Switch between the heatmap, the file ranking, the graph, the punch card and the ownership treemap (`1` – `3` with `-author`, which hides the last two) |
 | `←` `→` / `h` `l` | Move the window one year back / forward (one window at a time when the terminal shows less than a year) |
 | `t` | Return to the latest window |
-| `a` / `A` | Next / previous author filter (every page but the graph) |
 | `↑` `↓` / `k` `j` | Select the previous / next file in the ranking, commit in the graph or tile of the treemap (largest first), or scroll an inspect page |
 | `enter` | Inspect the selected file (the commits that touched it) or commit (its full message and the files it changed), or open the selected directory of the treemap; `q` or `esc` goes back |
 | `esc`, `backspace` (treemap) | Go up to the parent directory |
@@ -137,9 +140,9 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | `a` (graph) | Switch the graph between all branches (default) and the current branch |
 | `q`, `ctrl+c` | Quit (`q` leaves an inspect page first) |
 
-The heatmap is read-only. The file ranking, and the commits listed when inspecting a file, always cover the same dates and author filter as the heatmap. Inspecting a merge commit compares it with its first parent. You can move back while older commits lie before the window, and forward until the latest window. The month column is the calendar month of the window's last day.
+The heatmap is read-only. The file ranking, and the commits listed when inspecting a file, always cover the same dates and authors as the heatmap. Inspecting a merge commit compares it with its first parent. You can move back while older commits lie before the window, and forward until the latest window. The month column is the calendar month of the window's last day.
 
-The year keys apply to the heatmap and file ranking; the graph shows the whole history. In the graph, an author filter chosen in the other views fades other authors' commits, and authors not counted in the heatmap (for example, on unmerged branches without `-all`) are shown in grey. A search matches the commit message by default, case-insensitively. Start a part with `@commit` to match a hash prefix, `@author` to match the author's name or `@email` to match the email; every part must match, for example `fix parser @author bob @email example.com`. Matching text is highlighted in loaded commits; an `@email` match highlights the author. `n` and `N` stop at the last and first match; past the last loaded match, `n` loads older history so you can press it again. Copying uses the system clipboard: `pbcopy` on macOS, the Windows API on Windows, and `xclip`, `xsel` or `wl-copy` on Linux, one of which must be installed.
+The year keys apply to the heatmap and file ranking; the graph shows the whole history. In the graph, `-author` fades other authors' commits, and authors not counted in the heatmap (for example, on unmerged branches without `-all`) are shown in grey. A search matches the commit message by default, case-insensitively. Start a part with `@commit` to match a hash prefix, `@author` to match the author's name or `@email` to match the email; every part must match, for example `fix parser @author bob @email example.com`. Matching text is highlighted in loaded commits; an `@email` match highlights the author. `n` and `N` stop at the last and first match; past the last loaded match, `n` loads older history so you can press it again. Copying uses the system clipboard: `pbcopy` on macOS, the Windows API on Windows, and `xclip`, `xsel` or `wl-copy` on Linux, one of which must be installed.
 
 ```text
  * 0423a4e (HEAD -> main) release prep                             ■ Alice           2026-10-30

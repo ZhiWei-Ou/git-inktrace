@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -28,7 +30,6 @@ var helpSections = []helpSection{
 	{"Time window", "all but graph", []binding{
 		{"← → h l", "year back / forward"},
 		{"t", "latest window"},
-		{"a A", "next / previous author"},
 	}},
 	{"Lists", "files graph owners", []binding{
 		{"↑ ↓ k j", "select"},
@@ -55,6 +56,28 @@ var helpSections = []helpSection{
 	}},
 }
 
+// helpSections returns the help without the pages the author filter hides.
+func (m Model) helpSections() []helpSection {
+	if !m.filtered() {
+		return helpSections
+	}
+	var out []helpSection
+	for _, s := range helpSections {
+		if s.title == "Owners" {
+			continue
+		}
+		s.scope = strings.TrimSuffix(s.scope, " owners")
+		s.keys = slices.Clone(s.keys)
+		for i, k := range s.keys {
+			if k.key == "1 – 5" {
+				s.keys[i].key = fmt.Sprintf("1 – %d", len(m.views()))
+			}
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 // helpKey handles a key while the help page is open: ? q and esc close it,
 // ctrl+c still quits, and other keys do nothing.
 func (m *Model) helpKey(key string) bool {
@@ -73,7 +96,8 @@ func (m Model) helpPage() string {
 	t := m.theme
 	const gap = 4
 	keyWidth, colWidth := 0, 0
-	for _, s := range helpSections {
+	sections := m.helpSections()
+	for _, s := range sections {
 		for _, k := range s.keys {
 			keyWidth = max(keyWidth, lipgloss.Width(k.key))
 		}
@@ -84,7 +108,7 @@ func (m Model) helpPage() string {
 		}
 		return t.accent.Bold(true).Render(s.title) + t.dim.Render(" · "+s.scope)
 	}
-	for _, s := range helpSections {
+	for _, s := range sections {
 		colWidth = max(colWidth, lipgloss.Width(title(s)))
 		for _, k := range s.keys {
 			colWidth = max(colWidth, keyWidth+2+lipgloss.Width(k.desc))
@@ -92,7 +116,7 @@ func (m Model) helpPage() string {
 	}
 
 	var blocks [][]string
-	for _, s := range helpSections {
+	for _, s := range sections {
 		lines := []string{title(s)}
 		for _, k := range s.keys {
 			lines = append(lines, t.text.Bold(true).Render(padRight(k.key, keyWidth))+"  "+t.dim.Render(k.desc))
@@ -175,13 +199,13 @@ func (m Model) footer() string {
 	case m.inspect.open:
 		keys = []binding{{"↑↓", "scroll"}, {"q", "back"}, {"?", "help"}}
 	case m.view == FilesView:
-		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"←→", "year"}, {"a", "author"}, {"?", "help"}, {"q", "quit"}}
+		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"←→", "year"}, {"?", "help"}, {"q", "quit"}}
 	case m.view == GraphView:
 		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"/", "search"}, {"e", "reword"}, {"?", "help"}, {"q", "quit"}}
 	case m.view == OwnersView:
-		keys = []binding{{"↑↓", "select"}, {"enter", "open"}, {"esc", "up"}, {"w", "area"}, {"a", "author"}, {"?", "help"}, {"q", "quit"}}
+		keys = []binding{{"↑↓", "select"}, {"enter", "open"}, {"esc", "up"}, {"w", "area"}, {"?", "help"}, {"q", "quit"}}
 	default: // heatmap and hours
-		keys = []binding{{"←→", "year"}, {"a", "author"}, {"tab", "next page"}, {"?", "help"}, {"q", "quit"}}
+		keys = []binding{{"←→", "year"}, {"tab", "next page"}, {"?", "help"}, {"q", "quit"}}
 	}
 	t := m.theme
 	parts := make([]string, len(keys))

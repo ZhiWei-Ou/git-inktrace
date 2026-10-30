@@ -302,13 +302,13 @@ func (m Model) shownDir() *ownerNode {
 	return m.owners.root
 }
 
-// refreshOwners rebuilds the tree for the window and author filter.
+// refreshOwners rebuilds the tree for the window.
 func (m *Model) refreshOwners() {
 	if m.view != OwnersView {
 		return
 	}
 	s := &m.owners
-	s.root = buildOwners(m.data.FileRank(m.cal.Start, m.cal.End, m.author, 0))
+	s.root = buildOwners(m.data.FileRank(m.cal.Start, m.cal.End, 0))
 	if d := m.shownDir(); d.path != s.dir {
 		s.dir, s.cursor = d.path, 0
 	}
@@ -381,7 +381,7 @@ func (m *Model) ownersEnter() {
 		return
 	}
 	m.inspect = inspectState{open: true, path: t.node.path,
-		commits: m.data.FileCommits(t.node.path, m.cal.Start, m.cal.End, m.author)}
+		commits: m.data.FileCommits(t.node.path, m.cal.Start, m.cal.End)}
 }
 
 func (m Model) ownersView() string {

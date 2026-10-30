@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
-	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
 )
 
 // graphPage is how many commits the graph loads at first and adds each time
@@ -270,7 +269,7 @@ func (m Model) graphLine(l gitlog.GraphLine, selected bool) string {
 		hue = len(authorHues) // authors outside the counted history share grey
 	}
 	color := lipgloss.NewStyle().Foreground(t.authorColor(hue))
-	faded := m.author != stats.AllAuthors && id != m.author
+	faded := m.filtered() && id < 0
 
 	// Lanes keep git's colors; the commit mark takes the author's.
 	before, after, _ := strings.Cut(l.Graph, "*")

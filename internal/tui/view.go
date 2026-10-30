@@ -70,23 +70,39 @@ func (m Model) header() string {
 func (m Model) tabs() string {
 	t := m.theme
 	var parts []string
-	for i, name := range []string{"Heatmap", "Files", "Graph", "Hours", "Owners"} {
-		if View(i) == m.view {
-			parts = append(parts, t.activeTab.Render(name))
+	names := [...]string{"Heatmap", "Files", "Graph", "Hours", "Owners"}
+	for _, v := range m.views() {
+		if v == m.view {
+			parts = append(parts, t.activeTab.Render(names[v]))
 		} else {
-			parts = append(parts, t.tab.Render(name))
+			parts = append(parts, t.tab.Render(names[v]))
 		}
 	}
 	who := t.text.Render("all authors")
-	if m.author != stats.AllAuthors {
-		who = lipgloss.NewStyle().Foreground(t.authorColor(m.author)).Bold(true).
-			Render(cellGlyph + " " + m.data.Authors[m.author].Name)
+	if m.filtered() {
+		who = m.filteredAuthors()
 	}
 	right := t.dim.Render(fmt.Sprintf("%d commits · ", m.cal.Total)) + who + " "
 	if m.view == GraphView {
 		right = who + " "
 	}
 	return spread(" "+strings.Join(parts, " "), right, m.width)
+}
+
+// filteredAuthors names the authors the filter kept, each in their color,
+// or counts them when the names take more than a third of the width.
+func (m Model) filteredAuthors() string {
+	t := m.theme
+	var names []string
+	for id, a := range m.data.Authors {
+		color := lipgloss.NewStyle().Foreground(t.authorColor(id))
+		names = append(names, color.Render(cellGlyph)+" "+color.Bold(true).Render(a.Name))
+	}
+	if s := strings.Join(names, "  "); lipgloss.Width(s) <= m.width/3 {
+		return s
+	}
+	n := len(m.data.Authors)
+	return t.text.Render(fmt.Sprintf("%d %s", n, plural(n, "author", "authors")))
 }
 
 // heatmap draws the calendar with its scale and author legend as one block,
@@ -342,8 +358,7 @@ func (m Model) authorLegend(width int) string {
 	others := row{id: -1, values: make([]int, len(cols))}
 	for _, id := range ids {
 		a := m.data.Authors[id]
-		own := id < len(authorHues) || id == m.author
-		if own && len(rows) < maxRows-1 {
+		if id < len(authorHues) && len(rows) < maxRows-1 {
 			r := row{id: id, label: a.Name + " <" + a.Email + ">"}
 			for _, c := range cols {
 				r.values = append(r.values, c.counts[id])
@@ -380,8 +395,6 @@ func (m Model) authorLegend(width int) string {
 		style := t.text
 		if r.id < 0 {
 			style = t.dim
-		} else if r.id == m.author {
-			style = style.Bold(true).Underline(true)
 		}
 		hue := r.id
 		if hue < 0 {

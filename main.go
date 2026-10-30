@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
 	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
@@ -27,6 +28,7 @@ func run() error {
 		dir         = flag.String("C", ".", "run as if started in `path`")
 		all         = flag.Bool("all", false, "include every branch, remote branch and tag, not only HEAD (stashes excluded)")
 		top         = flag.Int("top", 100, "number of files in the ranking, 0 for all")
+		author      = flag.String("author", "", "show only authors whose name or email contains one of the `names`, separated by ';' (hides hours and owners)")
 		heatmap     = flag.Bool("heatmap", false, "open on the heatmap (default)")
 		files       = flag.Bool("files", false, "open on the file ranking")
 		graph       = flag.Bool("graph", false, "open on the branch graph")
@@ -41,6 +43,7 @@ func run() error {
 			"in the current directory.\n")
 		printFlags(flag.CommandLine.Output(), []flagGroup{
 			{"Flags", []string{"C", "all", "top", "version"}},
+			{"Filter", []string{"author"}},
 			{"Start page (pick one)", []string{"heatmap", "files", "graph", "hours", "owners"}},
 		})
 	}
@@ -52,6 +55,10 @@ func run() error {
 	view, err := startView(*heatmap, *files, *graph, *hours, *owners)
 	if err != nil {
 		return err
+	}
+	authors := splitAuthors(*author)
+	if len(authors) > 0 && (view == tui.HoursView || view == tui.OwnersView) {
+		return fmt.Errorf("-hours and -owners cannot be combined with -author")
 	}
 	if *showVersion {
 		fmt.Println("git-inktrace", version.Get())
@@ -83,7 +90,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	return tui.Run(stats.New(commits, tracked), tui.Options{
+	data := stats.New(commits, tracked)
+	for _, a := range authors {
+		if len(data.Match(a)) == 0 {
+			return fmt.Errorf("no author matches %q", a)
+		}
+	}
+	return tui.Run(data, tui.Options{
 		Repo:     filepath.Base(root),
 		Branch:   gitlog.Branch(root),
 		Top:      *top,
@@ -94,7 +107,19 @@ func run() error {
 		Tracked:  tracked,
 		Branches: branches,
 		View:     view,
+		Authors:  authors,
 	})
+}
+
+// splitAuthors splits the -author value at ';', dropping blank names.
+func splitAuthors(s string) []string {
+	var out []string
+	for _, a := range strings.Split(s, ";") {
+		if a = strings.TrimSpace(a); a != "" {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 type flagGroup struct {

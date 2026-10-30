@@ -217,7 +217,7 @@ func (m Model) rhythmTable(width int) string {
 	var folded [7][24]int
 	others := 0
 	for _, id := range ids {
-		if (id < len(authorHues) || id == m.author) && len(rows) < maxRows-1 {
+		if id < len(authorHues) && len(rows) < maxRows-1 {
 			rows = append(rows, row{id: id, label: m.data.Authors[id].Name, r: rhythms[id]})
 			continue
 		}
@@ -269,8 +269,6 @@ func (m Model) rhythmTable(width int) string {
 		hue, style := r.id, t.text
 		if r.id < 0 {
 			hue, style = len(authorHues), t.dim
-		} else if r.id == m.author {
-			style = style.Bold(true).Underline(true)
 		}
 		color := lipgloss.NewStyle().Foreground(t.authorColor(hue))
 		label := ansi.Truncate(r.label, labelWidth, "…")

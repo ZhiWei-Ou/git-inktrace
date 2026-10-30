@@ -68,7 +68,7 @@ func (m *Model) openInspect() tea.Cmd {
 		}
 		path := m.files[m.cursor].Path
 		m.inspect = inspectState{open: true, path: path,
-			commits: m.data.FileCommits(path, m.cal.Start, m.cal.End, m.author)}
+			commits: m.data.FileCommits(path, m.cal.Start, m.cal.End)}
 	case GraphView:
 		g := &m.graph
 		if !g.isCommit(g.cursor) {
