@@ -123,3 +123,32 @@ func TestFilesView(t *testing.T) {
 		t.Errorf("scrolled %d with all rows visible", m.scroll)
 	}
 }
+
+func TestShareScope(t *testing.T) {
+	now := time.Now()
+	commits := []gitlog.Commit{
+		{Author: "Alice", Email: "alice@example.com", Time: now},
+		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(-3, 0, 0)},
+		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(-3, 0, 1)},
+	}
+	m := New(stats.New(commits), Options{Top: 10})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = next.(Model)
+
+	sum := func(xs []int) (n int) {
+		for _, x := range xs {
+			n += x
+		}
+		return n
+	}
+	if got := sum(m.shares); got != 1 {
+		t.Errorf("window shares cover %d commits, want 1", got)
+	}
+	m = press(m, "s")
+	if got := sum(m.shares); got != 3 || !strings.Contains(m.View(), "all history") {
+		t.Errorf("all-history shares cover %d commits, want 3", got)
+	}
+	if !strings.Contains(m.View(), "66.7%") {
+		t.Errorf("missing Bob's all-history share:\n%s", m.View())
+	}
+}

@@ -73,7 +73,7 @@ func (m Model) tabs() string {
 }
 
 func (m Model) help() string {
-	keys := "←→ year · t latest · a/A author · tab files · q quit"
+	keys := "←→ year · t latest · a/A author · s share scope · tab files · q quit"
 	if m.view == filesView {
 		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab heatmap · q quit"
 	}
@@ -115,6 +115,11 @@ func (m Model) heatmap() string {
 		}
 	}
 	b.WriteString("\n" + spread(scale, t.dim.Render(fmt.Sprintf("%d active %s ", active, plural(active, "day", "days"))), m.width) + "\n\n")
+	scope := "this window"
+	if m.allHistory {
+		scope = "all history"
+	}
+	b.WriteString(strings.Repeat(" ", gutter) + t.dim.Render("Commit share · ") + t.text.Render(scope) + "\n")
 	b.WriteString(m.authorLegend() + "\n")
 	return b.String()
 }
@@ -149,8 +154,8 @@ func (m Model) monthLabels() string {
 	return m.theme.dim.Render(strings.TrimRight(string(line), " "))
 }
 
-// authorLegend lists the authors active in the window in their colors with
-// their share of the window's commits, busiest first.
+// authorLegend lists the authors with commits in the share scope in their
+// colors with their share of those commits, busiest first.
 func (m Model) authorLegend() string {
 	t := m.theme
 	total := 0
