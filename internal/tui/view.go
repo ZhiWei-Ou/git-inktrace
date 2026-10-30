@@ -192,8 +192,14 @@ func (m Model) authorChip(id, commits int, selected bool) string {
 	if selected {
 		name = name.Bold(true).Underline(true)
 	}
-	return lipgloss.NewStyle().Foreground(t.authorColor(id)).Render(cellGlyph) + " " +
-		name.Render(m.data.Authors[id].Name) + t.dim.Render(fmt.Sprintf(" %d", commits))
+	a := m.data.Authors[id]
+	email := ""
+	if a.Email != "" {
+		email = t.dim.Render(" <" + a.Email + ">")
+	}
+	chip := lipgloss.NewStyle().Foreground(t.authorColor(id)).Render(cellGlyph) + " " +
+		name.Render(a.Name) + email + t.text.Render(fmt.Sprintf(" %d", commits))
+	return ansi.Truncate(chip, max(m.width-gutter, 1), "…")
 }
 
 func (m Model) fileRows() int {

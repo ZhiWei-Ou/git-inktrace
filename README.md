@@ -26,8 +26,9 @@
 
      Less ■ ■ ■ ■ ■ More                                                    144 active days
 
-     ■ Carol 22  ■ Dave 22  ■ Bob 24  ■ Grace 22  ■ Heidi 21  ■ Alice 22  ■ Erin 19
-     ■ Ivan 20  ■ +1 other 17
+     ■ Carol <carol@x.io> 22  ■ Dave <dave@x.io> 22  ■ Bob <bob@x.io> 24
+     ■ Grace <grace@x.io> 22  ■ Heidi <heidi@x.io> 21  ■ Alice <alice@x.io> 22
+     ■ Erin <erin@x.io> 19  ■ Ivan <ivan@x.io> 20  ■ +1 other 17
 
  ←→ year · t latest · a/A author · tab files · q quit
 ```
