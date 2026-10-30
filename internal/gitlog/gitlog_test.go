@@ -9,18 +9,18 @@ import (
 )
 
 func TestParse(t *testing.T) {
+	// Shaped like `git log -M --numstat -z` output.
 	out := strings.Join([]string{
 		"\x1eaaa\x1fAlice\x1falice@example.com\x1f1700000000",
-		"",
-		"3\t1\tmain.go",
+		"\n3\t1\tmain.go",
 		"-\t-\tlogo.png",
+		"2\t0\t", "old dir/a.go", "new dir/a.go",
 		"10\t0\tdocs/read me.md",
 		"\x1ebbb\x1fBob\x1fbob@example.com\x1f1700086400",
 		"\x1eccc\x1fAlice\x1falice@example.com\x1f1700172800",
+		"\n1\t1\tmain.go",
 		"",
-		"1\t1\tmain.go",
-		"",
-	}, "\n")
+	}, "\x00")
 
 	commits, err := Parse(strings.NewReader(out))
 	if err != nil {
@@ -33,7 +33,12 @@ func TestParse(t *testing.T) {
 	if c.Hash != "aaa" || c.Author != "Alice" || c.Email != "alice@example.com" || c.Time.Unix() != 1700000000 {
 		t.Errorf("unexpected header: %+v", c)
 	}
-	want := []FileChange{{"main.go", 3, 1}, {"logo.png", -1, -1}, {"docs/read me.md", 10, 0}}
+	want := []FileChange{
+		{Path: "main.go", Added: 3, Deleted: 1},
+		{Path: "logo.png", Added: -1, Deleted: -1},
+		{Path: "new dir/a.go", OldPath: "old dir/a.go", Added: 2},
+		{Path: "docs/read me.md", Added: 10},
+	}
 	if len(c.Files) != len(want) {
 		t.Fatalf("got files %+v, want %+v", c.Files, want)
 	}
@@ -49,10 +54,11 @@ func TestParse(t *testing.T) {
 
 func TestParseMalformed(t *testing.T) {
 	for _, in := range []string{
-		"1\t1\tfile.go\n",
-		"\x1eaaa\x1fAlice\n",
-		"\x1eaaa\x1fA\x1fa@x\x1fnot-a-time\n",
-		"\x1eaaa\x1fA\x1fa@x\x1f1\nbad line\n",
+		"1\t1\tfile.go\x00",
+		"\x1eaaa\x1fAlice\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1fnot-a-time\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1f1\x00\nbad entry\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1f1\x00\n1\t0\t\x00old\x00",
 	} {
 		if _, err := Parse(strings.NewReader(in)); err == nil {
 			t.Errorf("Parse(%q) succeeded, want error", in)
@@ -95,7 +101,7 @@ func TestReadRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(commits) != 1 || commits[0].Author != "Alice" || len(commits[0].Files) != 1 || commits[0].Files[0] != (FileChange{"a.txt", 2, 0}) {
+	if len(commits) != 1 || commits[0].Author != "Alice" || len(commits[0].Files) != 1 || commits[0].Files[0] != (FileChange{Path: "a.txt", Added: 2}) {
 		t.Fatalf("unexpected commits: %+v", commits)
 	}
 	// .mailmap rewrites the author identity.
@@ -109,6 +115,24 @@ func TestReadRepository(t *testing.T) {
 	}
 	if c := commits[0]; c.Author != "Alice Liddell" || c.Email != "alice@wonderland.org" {
 		t.Errorf("mailmap not applied: %s <%s>", c.Author, c.Email)
+	}
+
+	// Renames are detected.
+	if err := os.Mkdir(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	run("mv", "a.txt", "docs/b.txt")
+	run("commit", "-q", "-m", "move")
+	commits, err = Read(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f := commits[0].Files; len(f) != 1 || f[0] != (FileChange{Path: "docs/b.txt", OldPath: "a.txt"}) {
+		t.Errorf("rename not detected: %+v", f)
+	}
+	tracked, err := Tracked(dir)
+	if err != nil || len(tracked) != 1 || tracked[0] != "docs/b.txt" {
+		t.Errorf("Tracked = %v, %v", tracked, err)
 	}
 
 	if b := Branch(dir); b != "main" {

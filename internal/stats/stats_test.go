@@ -27,7 +27,7 @@ func sample() *Data {
 			Files: []gitlog.FileChange{fc("a.go", 1, 0)}},
 		{Author: "Alice", Email: "alice@example.com", Time: at(2026, 3, 1, 12),
 			Files: []gitlog.FileChange{fc("a.go", 1, 0)}},
-	})
+	}, nil)
 }
 
 func TestAuthors(t *testing.T) {
@@ -58,7 +58,7 @@ func TestAuthorIdentities(t *testing.T) {
 		{Author: "Robert", Email: "robert@work.com", Time: at(2026, 2, 1, 0)},
 		{Author: "R. Smith", Email: "robert@work.com", Time: at(2026, 2, 2, 0)},
 		{Author: "Carol", Email: "carol@example.com", Time: at(2026, 7, 1, 0)},
-	})
+	}, nil)
 	if len(d.Authors) != 2 {
 		t.Fatalf("got %d authors, want 2: %+v", len(d.Authors), d.Authors)
 	}
@@ -135,5 +135,44 @@ func TestFileRank(t *testing.T) {
 	}
 	if limited := d.FileRank(at(2026, 1, 1, 0), at(2026, 12, 31, 0), AllAuthors, 1); len(limited) != 1 {
 		t.Errorf("limit ignored: %d", len(limited))
+	}
+}
+
+func TestFileRankFollowsRenames(t *testing.T) {
+	rename := func(from, to string, added int) gitlog.FileChange {
+		return gitlog.FileChange{Path: to, OldPath: from, Added: added}
+	}
+	d := New([]gitlog.Commit{ // newest first
+		{Author: "A", Email: "a@x", Time: at(2026, 3, 6, 0), Files: []gitlog.FileChange{fc("old/a.go", 5, 0)}},
+		{Author: "A", Email: "a@x", Time: at(2026, 3, 5, 0), Files: []gitlog.FileChange{fc("new/a.go", 1, 1)}},
+		{Author: "A", Email: "a@x", Time: at(2026, 3, 4, 0), Files: []gitlog.FileChange{rename("mid/a.go", "new/a.go", 1)}},
+		{Author: "A", Email: "a@x", Time: at(2026, 3, 3, 0), Files: []gitlog.FileChange{rename("old/a.go", "mid/a.go", 0)}},
+		{Author: "A", Email: "a@x", Time: at(2026, 3, 2, 0), Files: []gitlog.FileChange{fc("old/a.go", 3, 1)}},
+		{Author: "A", Email: "a@x", Time: at(2026, 3, 1, 0), Files: []gitlog.FileChange{fc("old/a.go", 10, 0), fc("gone.go", 4, 0)}},
+		{Author: "A", Email: "a@x", Time: at(2026, 2, 28, 0), Files: []gitlog.FileChange{fc("gone.go", 0, 4)}},
+	}, []string{"new/a.go", "old/a.go"})
+
+	rank := d.FileRank(at(2026, 1, 1, 0), at(2026, 12, 31, 0), AllAuthors, 0)
+	if len(rank) != 3 {
+		t.Fatalf("got %+v", rank)
+	}
+	// The whole rename chain counts toward the latest path.
+	if r := rank[0]; r.Path != "new/a.go" || r.Commits != 5 || r.Added != 15 || r.Deleted != 2 || r.Gone {
+		t.Errorf("renamed file = %+v", r)
+	}
+	// A new file reusing the old path after the rename stays separate.
+	for _, r := range rank[1:] {
+		switch r.Path {
+		case "old/a.go":
+			if r.Commits != 1 || r.Gone {
+				t.Errorf("reused path = %+v", r)
+			}
+		case "gone.go":
+			if !r.Gone {
+				t.Errorf("deleted file not marked: %+v", r)
+			}
+		default:
+			t.Errorf("unexpected path %+v", r)
+		}
 	}
 }

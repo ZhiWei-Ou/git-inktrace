@@ -25,21 +25,27 @@ type commit struct {
 	author int
 	day    time.Time // local midnight
 	time   time.Time
-	files  []gitlog.FileChange
+	files  []gitlog.FileChange // paths resolved to the file's latest name
 }
 
 // Data holds the aggregated history of a repository.
 type Data struct {
 	Authors []Author // sorted by commits, descending
 	commits []commit // newest first
+	tracked map[string]bool
 }
 
 // New indexes commits by author. Commits sharing an email (case-insensitive)
 // or a name belong to the same author, like `git shortlog` grouping, so
 // identities unified by .mailmap (already applied by gitlog) merge as well.
 // Each author shows the name and email of their newest commit.
-func New(commits []gitlog.Commit) *Data {
+//
+// File changes follow renames, so a file's whole history counts toward its
+// latest path. tracked lists the paths that still exist; files outside it
+// are reported as gone. A nil tracked marks nothing as gone.
+func New(commits []gitlog.Commit, tracked []string) *Data {
 	ids := groupIdentities(commits)
+	files := resolveRenames(commits)
 	index := map[int]int{} // group -> author
 	var authors []Author
 	for i, c := range commits {
@@ -74,9 +80,15 @@ func New(commits []gitlog.Commit) *Data {
 		rank[id] = r
 		d.Authors[r] = authors[id]
 	}
+	if tracked != nil {
+		d.tracked = make(map[string]bool, len(tracked))
+		for _, p := range tracked {
+			d.tracked[p] = true
+		}
+	}
 	for i, c := range commits {
 		local := c.Time.Local()
-		d.commits[i] = commit{author: rank[ids[i]], day: midnight(local), time: local, files: c.Files}
+		d.commits[i] = commit{author: rank[ids[i]], day: midnight(local), time: local, files: files[i]}
 	}
 	return d
 }
@@ -200,7 +212,8 @@ type FileStat struct {
 	Added     int
 	Deleted   int
 	Binary    bool
-	TopAuthor int // author with most commits touching the file
+	Gone      bool // deleted: no longer in the tracked files
+	TopAuthor int  // author with most commits touching the file
 }
 
 // FileRank returns the files changed in the most commits between from and to
@@ -222,7 +235,8 @@ func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 		for _, f := range c.files {
 			a := files[f.Path]
 			if a == nil {
-				a = &acc{FileStat: FileStat{Path: f.Path}, byAuthor: map[int]int{}}
+				gone := d.tracked != nil && !d.tracked[f.Path]
+				a = &acc{FileStat: FileStat{Path: f.Path, Gone: gone}, byAuthor: map[int]int{}}
 				files[f.Path] = a
 			}
 			a.Commits++
@@ -257,6 +271,28 @@ func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 	})
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
+	}
+	return out
+}
+
+// resolveRenames returns each commit's file changes with paths rewritten to
+// the file's latest name. Walking from newest to oldest, a rename maps the
+// old path onto the new file, so earlier changes to the old path follow it,
+// while later reuse of the old path stays separate.
+func resolveRenames(commits []gitlog.Commit) [][]gitlog.FileChange {
+	latest := map[string]string{} // old path -> latest path
+	out := make([][]gitlog.FileChange, len(commits))
+	for i, c := range commits {
+		out[i] = make([]gitlog.FileChange, len(c.Files))
+		for j, f := range c.Files {
+			if p, ok := latest[f.Path]; ok {
+				f.Path = p
+			}
+			if f.OldPath != "" {
+				latest[f.OldPath] = f.Path
+			}
+			out[i][j] = f
+		}
 	}
 	return out
 }

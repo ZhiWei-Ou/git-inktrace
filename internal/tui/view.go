@@ -315,13 +315,23 @@ func (m Model) fileTable() string {
 			lipgloss.NewStyle().Foreground(lipgloss.Color("#3fb950")).Render(added),
 			lipgloss.NewStyle().Foreground(lipgloss.Color("#f85149")).Render(deleted),
 			author,
-			t.text.Render(truncatePath(f.Path, pathWidth)),
+			m.filePath(f, pathWidth),
 		) + "\n")
 	}
 	if len(m.files) > m.fileRows() {
 		b.WriteString(" " + t.dim.Render(fmt.Sprintf("%d–%d of %d", m.scroll+1, end, len(m.files))) + "\n")
 	}
 	return b.String()
+}
+
+// filePath renders a ranked path, dimmed and tagged when the file is gone.
+func (m Model) filePath(f stats.FileStat, width int) string {
+	t := m.theme
+	if !f.Gone {
+		return t.text.Render(truncatePath(f.Path, width))
+	}
+	const tag = " (deleted)"
+	return t.dim.Strikethrough(true).Render(truncatePath(f.Path, max(width-len(tag), 4))) + t.dim.Render(tag)
 }
 
 // spread places left and right at the edges of a line of the given width.

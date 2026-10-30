@@ -23,7 +23,7 @@ func testModel(t *testing.T, width int) Model {
 			Files: []gitlog.FileChange{{Path: "dir/file" + string(rune('a'+i%5)) + ".go", Added: i, Deleted: 1}},
 		})
 	}
-	m := New(stats.New(commits), Options{Repo: "demo", Branch: "main", Top: 100})
+	m := New(stats.New(commits, nil), Options{Repo: "demo", Branch: "main", Top: 100})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 30})
 	return next.(Model)
 }
@@ -66,7 +66,7 @@ func TestYearNavigation(t *testing.T) {
 	for _, years := range []int{0, 1, 2} {
 		commits = append(commits, gitlog.Commit{Author: "Alice", Email: "alice@example.com", Time: now.AddDate(-years, 0, 0)})
 	}
-	m := New(stats.New(commits), Options{Top: 10})
+	m := New(stats.New(commits, nil), Options{Top: 10})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	m = next.(Model)
 	end := m.cal.End
@@ -129,7 +129,7 @@ func TestShareColumns(t *testing.T) {
 		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(-3, 0, 0)},
 		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(-3, 0, 1)},
 	}
-	m := New(stats.New(commits), Options{Top: 10})
+	m := New(stats.New(commits, nil), Options{Top: 10})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	out := next.(Model).View()
 
@@ -146,7 +146,7 @@ func TestShareColumnsSingleWindow(t *testing.T) {
 		{Author: "Alice", Email: "alice@example.com", Time: now},
 		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(0, -2, 0)},
 	}
-	m := New(stats.New(commits), Options{Top: 10})
+	m := New(stats.New(commits, nil), Options{Top: 10})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	out := next.(Model).View()
 
@@ -163,7 +163,7 @@ func TestShareColumnsMonth(t *testing.T) {
 		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(0, -2, 0)},
 		{Author: "Bob", Email: "bob@example.com", Time: now.AddDate(-3, 0, 0)},
 	}
-	m := New(stats.New(commits), Options{Top: 10})
+	m := New(stats.New(commits, nil), Options{Top: 10})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 	out := next.(Model).View()
 
@@ -180,7 +180,7 @@ func TestShareColumnsMonth(t *testing.T) {
 }
 
 func TestViewBeforeWindowSize(t *testing.T) {
-	m := New(stats.New([]gitlog.Commit{{Author: "Alice", Email: "a@x", Time: time.Now()}}), Options{})
+	m := New(stats.New([]gitlog.Commit{{Author: "Alice", Email: "a@x", Time: time.Now()}}, nil), Options{})
 	if !strings.Contains(m.View(), "Alice") {
 		t.Error("first frame missing content")
 	}
@@ -192,7 +192,7 @@ func TestNarrowWindowReachesOlderCommits(t *testing.T) {
 		{Author: "Alice", Email: "alice@example.com", Time: now},
 		{Author: "Alice", Email: "alice@example.com", Time: now.AddDate(0, -10, 0)},
 	}
-	m := New(stats.New(commits), Options{})
+	m := New(stats.New(commits, nil), Options{})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 30}) // about half a year
 	m = next.(Model)
 	if m.cal.Total != 1 {
@@ -201,5 +201,17 @@ func TestNarrowWindowReachesOlderCommits(t *testing.T) {
 	m = press(m, "left")
 	if m.cal.Total != 1 || !m.cal.End.Before(now.AddDate(0, -6, 0)) {
 		t.Errorf("could not move back to the older commit: %v..%v total %d", m.cal.Start, m.cal.End, m.cal.Total)
+	}
+}
+
+func TestFilesViewMarksDeleted(t *testing.T) {
+	commits := []gitlog.Commit{{Author: "Alice", Email: "a@x", Time: time.Now(), Files: []gitlog.FileChange{
+		{Path: "kept.go", Added: 1}, {Path: "removed.go", Added: 2},
+	}}}
+	m := New(stats.New(commits, []string{"kept.go"}), Options{})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	out := press(next.(Model), "tab").View()
+	if !strings.Contains(out, "removed.go") || strings.Count(out, "(deleted)") != 1 {
+		t.Errorf("want only removed.go tagged as deleted:\n%s", out)
 	}
 }

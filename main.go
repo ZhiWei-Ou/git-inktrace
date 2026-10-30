@@ -55,7 +55,11 @@ func run() error {
 	if len(commits) == 0 {
 		return fmt.Errorf("no commits in %s", root)
 	}
-	return tui.Run(stats.New(commits), tui.Options{
+	tracked, err := gitlog.Tracked(root)
+	if err != nil {
+		return err
+	}
+	return tui.Run(stats.New(commits, tracked), tui.Options{
 		Repo:   filepath.Base(root),
 		Branch: gitlog.Branch(root),
 		Top:    *top,

@@ -45,7 +45,7 @@
 - **Contribution heatmap** — a GitHub-style calendar of weeks by weekdays, sized to fit the terminal (up to 53 weeks).
 - **Contribution share** — the legend lists each author with their email, with commit count and share in the current calendar month, the visible time window and the whole repository history, busiest first. A column that would repeat its neighbor is hidden — for example, only the history column is shown when the window already holds every commit.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
-- **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most.
+- **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most. History follows renames to each file's current path, and files no longer in `HEAD` are tagged `(deleted)`.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
 - **Focus on one author** — filter both views to a single contributor.
 - **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
@@ -97,7 +97,7 @@ Alice Liddell <alice@wonderland.org> <alice@old-laptop.local>
 Alice Liddell <alice@wonderland.org> Ally <ally@example.com>
 ```
 
-The heatmap ends today. If the repository has had no commits for over a year, it ends on the latest commit instead. Merge commits are skipped, and renames count as a delete plus an add.
+The heatmap ends today. If the repository has had no commits for over a year, it ends on the latest commit instead. Merge commits are skipped. Renames detected by git (`git log -M`) carry a file's history to its latest path; a file deleted in a later commit shows equal added and deleted totals, because every line it ever had was eventually removed.
 
 ### Keys
 

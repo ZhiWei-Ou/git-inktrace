@@ -16,8 +16,9 @@ import (
 // FileChange is one file touched by a commit.
 type FileChange struct {
 	Path    string
-	Added   int // -1 for binary files
-	Deleted int // -1 for binary files
+	OldPath string // previous path when the commit renamed the file
+	Added   int    // -1 for binary files
+	Deleted int    // -1 for binary files
 }
 
 // Commit is a non-merge commit with its file changes.
@@ -60,12 +61,11 @@ type Options struct {
 }
 
 // Read returns the non-merge commits reachable from HEAD (or all refs), newest first.
-// Author names and emails have .mailmap applied. A repository without commits
-// yields an empty slice.
+// Author names and emails have .mailmap applied, and renames are detected.
+// A repository without commits yields an empty slice.
 func Read(dir string, opts Options) ([]Commit, error) {
 	args := []string{
-		"-c", "core.quotePath=false",
-		"log", "--no-merges", "--no-renames", "--numstat",
+		"log", "--no-merges", "-M", "--numstat", "-z",
 		"--format=" + recordSep + "%H" + fieldSep + "%aN" + fieldSep + "%aE" + fieldSep + "%at",
 	}
 	if opts.All {
@@ -96,18 +96,40 @@ func Read(dir string, opts Options) ([]Commit, error) {
 	return commits, parseErr
 }
 
-// Parse decodes the output of the git log command built by Read.
+// Tracked returns the paths of the files in the HEAD tree.
+func Tracked(dir string) ([]string, error) {
+	out, err := git(dir, "ls-tree", "-r", "-z", "--name-only", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	return strings.Split(strings.TrimSuffix(string(out), "\x00"), "\x00"), nil
+}
+
+// Parse decodes the NUL-separated output of the git log command built by Read.
+// Each commit is a header token followed by numstat tokens; a rename is a
+// numstat token with an empty path followed by the old and new path tokens.
 func Parse(r io.Reader) ([]Commit, error) {
 	var commits []Commit
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
-	for sc.Scan() {
-		line := sc.Text()
-		if line == "" {
+	sc.Split(splitNUL)
+	next := func() (string, bool) {
+		if !sc.Scan() {
+			return "", false
+		}
+		return sc.Text(), true
+	}
+	for {
+		tok, ok := next()
+		if !ok {
+			break
+		}
+		tok = strings.TrimLeft(tok, "\n")
+		if tok == "" {
 			continue
 		}
-		if strings.HasPrefix(line, recordSep) {
-			c, err := parseHeader(line[len(recordSep):])
+		if strings.HasPrefix(tok, recordSep) {
+			c, err := parseHeader(tok[len(recordSep):])
 			if err != nil {
 				return nil, err
 			}
@@ -115,16 +137,34 @@ func Parse(r io.Reader) ([]Commit, error) {
 			continue
 		}
 		if len(commits) == 0 {
-			return nil, fmt.Errorf("unexpected line before first commit: %q", line)
+			return nil, fmt.Errorf("unexpected output before first commit: %q", tok)
 		}
-		fc, err := parseNumstat(line)
+		fc, err := parseNumstat(tok)
 		if err != nil {
 			return nil, err
+		}
+		if fc.Path == "" {
+			old, ok1 := next()
+			path, ok2 := next()
+			if !ok1 || !ok2 {
+				return nil, fmt.Errorf("truncated rename after %q", tok)
+			}
+			fc.OldPath, fc.Path = old, path
 		}
 		last := &commits[len(commits)-1]
 		last.Files = append(last.Files, fc)
 	}
 	return commits, sc.Err()
+}
+
+func splitNUL(data []byte, atEOF bool) (int, []byte, error) {
+	if i := bytes.IndexByte(data, 0); i >= 0 {
+		return i + 1, data[:i], nil
+	}
+	if atEOF && len(data) > 0 {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
 }
 
 func parseHeader(s string) (Commit, error) {
@@ -139,10 +179,11 @@ func parseHeader(s string) (Commit, error) {
 	return Commit{Hash: f[0], Author: f[1], Email: f[2], Time: time.Unix(ts, 0)}, nil
 }
 
+// parseNumstat decodes "added\tdeleted\tpath"; path is empty for a rename.
 func parseNumstat(line string) (FileChange, error) {
 	f := strings.SplitN(line, "\t", 3)
 	if len(f) != 3 {
-		return FileChange{}, fmt.Errorf("malformed numstat line: %q", line)
+		return FileChange{}, fmt.Errorf("malformed numstat entry: %q", line)
 	}
 	return FileChange{Path: f[2], Added: count(f[0]), Deleted: count(f[1])}, nil
 }
