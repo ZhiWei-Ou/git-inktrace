@@ -440,13 +440,30 @@ func (m Model) ownersView() string {
 				grid[y][x] = cell{" ", i}
 			}
 		}
-		for j, line := range m.tileLabel(tl, x1-tl.x0-1, isSel) {
-			if tl.y0+j >= y1 {
+		// The label sits inside the tile, and inside the selected tile's
+		// border: a box when it has the rows, else just its sides.
+		lx, ly, lx1, ly1 := tl.x0+1, tl.y0, x1, y1
+		if isSel {
+			lx1--
+			for y := tl.y0; y < y1; y++ {
+				grid[y][tl.x0].r, grid[y][x1-1].r = "│", "│"
+			}
+			if y1-tl.y0 >= 3 {
+				ly, ly1 = tl.y0+1, y1-1
+				for x := tl.x0 + 1; x < x1-1; x++ {
+					grid[tl.y0][x].r, grid[y1-1][x].r = "─", "─"
+				}
+				grid[tl.y0][tl.x0].r, grid[tl.y0][x1-1].r = "╭", "╮"
+				grid[y1-1][tl.x0].r, grid[y1-1][x1-1].r = "╰", "╯"
+			}
+		}
+		for j, line := range m.tileLabel(tl, lx1-lx) {
+			if ly+j >= ly1 {
 				break
 			}
 			for k, r := range []rune(line) {
-				if x := tl.x0 + 1 + k; x < x1 {
-					grid[tl.y0+j][x].r = string(r)
+				if x := lx + k; x < lx1 {
+					grid[ly+j][x].r = string(r)
 				}
 			}
 		}
@@ -494,7 +511,7 @@ func (m Model) tileStyle(tl tile, selected bool) lipgloss.Style {
 
 // tileLabel is the text inside a tile: its name, then its owner and share,
 // then its size, as far as the tile fits them.
-func (m Model) tileLabel(tl tile, width int, selected bool) []string {
+func (m Model) tileLabel(tl tile, width int) []string {
 	if width < 1 {
 		return nil
 	}
@@ -506,9 +523,6 @@ func (m Model) tileLabel(tl tile, width int, selected bool) []string {
 	name := n.name
 	if n.dir {
 		name += "/"
-	}
-	if selected {
-		name = "▸ " + name
 	}
 	top, share, _ := n.owner()
 	lines := []string{fit(name)}

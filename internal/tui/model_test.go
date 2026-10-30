@@ -1116,7 +1116,7 @@ func TestSquarify(t *testing.T) {
 func TestOwnersView(t *testing.T) {
 	m := ownersModel(t, 100, 30)
 	out := ansi.Strip(m.View())
-	for _, want := range []string{"Owners", "demo/", "area: file changes", "▸ src/", "docs/guide/", "Alice 67%", "18 changes", "bus factor 1"} {
+	for _, want := range []string{"Owners", "demo/", "area: file changes", "│src/", "╭─", "docs/guide/", "Alice 67%", "18 changes", "bus factor 1"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q:\n%s", want, out)
 		}
