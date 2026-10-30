@@ -60,7 +60,8 @@ type Options struct {
 }
 
 // Read returns the non-merge commits reachable from HEAD (or all refs), newest first.
-// A repository without commits yields an empty slice.
+// Author names and emails have .mailmap applied. A repository without commits
+// yields an empty slice.
 func Read(dir string, opts Options) ([]Commit, error) {
 	args := []string{
 		"-c", "core.quotePath=false",

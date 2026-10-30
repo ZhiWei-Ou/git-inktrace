@@ -37,7 +37,8 @@
 - **Contribution heatmap** — a GitHub-style calendar of weeks by weekdays, sized to fit the terminal (up to 53 weeks).
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most.
-- **Focus on one author** — filter both views to a single contributor; authors are merged by email, so name changes do not split them.
+- **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
+- **Focus on one author** — filter both views to a single contributor.
 - **Browse history by year** — step the window back and forth one year at a time with the arrow keys; arrows in the title bar show which way more history lies.
 - **Works as a git subcommand** — put `git-inktrace` on your `PATH` and run `git inktrace` in any repository.
 
@@ -78,6 +79,13 @@ Examples:
 git inktrace -C ~/src/project     # inspect another repository
 git inktrace -all                 # count commits on every branch and tag
 git inktrace -top 0               # rank every changed file
+```
+
+Authors are merged the way `git shortlog` groups them, plus by email: commits that share an email (case-insensitive) or a name belong to one author. To join identities that share neither, add a [`.mailmap`](https://git-scm.com/docs/gitmailmap) file to the repository, for example:
+
+```text
+Alice Liddell <alice@wonderland.org> <alice@old-laptop.local>
+Alice Liddell <alice@wonderland.org> Ally <ally@example.com>
 ```
 
 The heatmap ends today. If the repository has had no commits for over a year, it ends on the latest commit instead. Merge commits are skipped, and renames count as a delete plus an add.

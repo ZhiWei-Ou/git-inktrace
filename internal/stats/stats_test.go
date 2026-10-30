@@ -47,6 +47,29 @@ func TestAuthors(t *testing.T) {
 	}
 }
 
+func TestAuthorIdentities(t *testing.T) {
+	d := New([]gitlog.Commit{
+		// Out of time order on purpose: the newest name must still win.
+		{Author: "Bob Old", Email: "bob@example.com", Time: at(2026, 1, 1, 0)},
+		{Author: "Robert", Email: "BOB@example.com", Time: at(2026, 6, 1, 0)},
+		{Author: "Bob Mid", Email: "bob@example.com", Time: at(2026, 3, 1, 0)},
+		// Same name under another email joins the same author, and that
+		// email pulls in a further name (transitive merge).
+		{Author: "Robert", Email: "robert@work.com", Time: at(2026, 2, 1, 0)},
+		{Author: "R. Smith", Email: "robert@work.com", Time: at(2026, 2, 2, 0)},
+		{Author: "Carol", Email: "carol@example.com", Time: at(2026, 7, 1, 0)},
+	})
+	if len(d.Authors) != 2 {
+		t.Fatalf("got %d authors, want 2: %+v", len(d.Authors), d.Authors)
+	}
+	if a := d.Authors[0]; a.Name != "Robert" || a.Email != "BOB@example.com" || a.Commits != 5 {
+		t.Errorf("merged author = %+v", a)
+	}
+	if a := d.Authors[1]; a.Name != "Carol" || a.Commits != 1 {
+		t.Errorf("second author = %+v", a)
+	}
+}
+
 func TestCalendar(t *testing.T) {
 	d := sample()
 	// 2026-03-12 is a Thursday.

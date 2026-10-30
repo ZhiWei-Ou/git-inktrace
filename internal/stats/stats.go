@@ -12,11 +12,13 @@ import (
 // AllAuthors selects every author in Calendar and FileRank.
 const AllAuthors = -1
 
-// Author is a contributor identified by email, ordered by commit count.
+// Author is one contributor, possibly committing under several names or
+// emails, ordered by commit count.
 type Author struct {
-	Name    string
-	Email   string
+	Name    string // name of the newest commit
+	Email   string // email of the newest commit
 	Commits int
+	latest  time.Time
 }
 
 type commit struct {
@@ -32,24 +34,26 @@ type Data struct {
 	commits []commit // newest first
 }
 
-// New indexes commits by author. Authors are keyed by case-insensitive email,
-// falling back to name, and take the most recent name they committed with.
+// New indexes commits by author. Commits sharing an email (case-insensitive)
+// or a name belong to the same author, like `git shortlog` grouping, so
+// identities unified by .mailmap (already applied by gitlog) merge as well.
+// Each author shows the name and email of their newest commit.
 func New(commits []gitlog.Commit) *Data {
-	index := map[string]int{}
+	ids := groupIdentities(commits)
+	index := map[int]int{} // group -> author
 	var authors []Author
-	ids := make([]int, len(commits))
 	for i, c := range commits {
-		key := strings.ToLower(c.Email)
-		if key == "" {
-			key = c.Author
-		}
-		id, ok := index[key]
+		id, ok := index[ids[i]]
 		if !ok {
 			id = len(authors)
-			index[key] = id
-			authors = append(authors, Author{Name: c.Author, Email: c.Email})
+			index[ids[i]] = id
+			authors = append(authors, Author{})
 		}
-		authors[id].Commits++
+		a := &authors[id]
+		a.Commits++
+		if a.Commits == 1 || c.Time.After(a.latest) {
+			a.Name, a.Email, a.latest = c.Author, c.Email, c.Time
+		}
 		ids[i] = id
 	}
 
@@ -242,6 +246,55 @@ func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 		out = out[:limit]
 	}
 	return out
+}
+
+// groupIdentities assigns each commit a group id, joining commits that
+// share a lower-cased email or a name.
+func groupIdentities(commits []gitlog.Commit) []int {
+	parent := map[string]string{}
+	var find func(string) string
+	find = func(k string) string {
+		p, ok := parent[k]
+		if !ok || p == k {
+			parent[k] = k
+			return k
+		}
+		root := find(p)
+		parent[k] = root
+		return root
+	}
+	keys := make([]string, len(commits))
+	for i, c := range commits {
+		var ks []string
+		if c.Email != "" {
+			ks = append(ks, "e:"+strings.ToLower(c.Email))
+		}
+		if c.Author != "" {
+			ks = append(ks, "n:"+c.Author)
+		}
+		if len(ks) == 0 {
+			ks = append(ks, "unknown")
+		}
+		root := find(ks[0])
+		for _, k := range ks[1:] {
+			if r := find(k); r != root {
+				parent[r] = root
+			}
+		}
+		keys[i] = ks[0]
+	}
+	groups := map[string]int{}
+	ids := make([]int, len(commits))
+	for i, k := range keys {
+		root := find(k)
+		id, ok := groups[root]
+		if !ok {
+			id = len(groups)
+			groups[root] = id
+		}
+		ids[i] = id
+	}
+	return ids
 }
 
 func midnight(t time.Time) time.Time {

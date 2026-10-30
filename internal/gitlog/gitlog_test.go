@@ -98,6 +98,19 @@ func TestReadRepository(t *testing.T) {
 	if len(commits) != 1 || commits[0].Author != "Alice" || len(commits[0].Files) != 1 || commits[0].Files[0] != (FileChange{"a.txt", 2, 0}) {
 		t.Fatalf("unexpected commits: %+v", commits)
 	}
+	// .mailmap rewrites the author identity.
+	mailmap := "Alice Liddell <alice@wonderland.org> <alice@example.com>\n"
+	if err := os.WriteFile(filepath.Join(dir, ".mailmap"), []byte(mailmap), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	commits, err = Read(dir, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := commits[0]; c.Author != "Alice Liddell" || c.Email != "alice@wonderland.org" {
+		t.Errorf("mailmap not applied: %s <%s>", c.Author, c.Email)
+	}
+
 	if b := Branch(dir); b != "main" {
 		t.Errorf("Branch = %q, want main", b)
 	}

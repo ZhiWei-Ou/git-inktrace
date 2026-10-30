@@ -114,7 +114,7 @@ func (m Model) heatmap() string {
 			}
 		}
 	}
-	b.WriteString("\n" + spread(scale, t.dim.Render(fmt.Sprintf("%d active days ", active)), m.width) + "\n\n")
+	b.WriteString("\n" + spread(scale, t.dim.Render(fmt.Sprintf("%d active %s ", active, plural(active, "day", "days"))), m.width) + "\n\n")
 	b.WriteString(m.authorLegend() + "\n")
 	return b.String()
 }
