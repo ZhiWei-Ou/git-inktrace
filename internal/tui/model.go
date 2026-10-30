@@ -242,14 +242,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.setView(vs[i])
 		}
 		return m, nil
-	case "left", "h", "right", "l", "t":
+	case "[", "]", "t":
 		if m.view == GraphView {
 			return m, nil // the graph has no time window
 		}
 		switch msg.String() {
-		case "left", "h":
+		case "[":
 			m.shiftYears(-1)
-		case "right", "l":
+		case "]":
 			m.shiftYears(1)
 		default:
 			m.end = defaultEnd(m.data)

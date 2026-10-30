@@ -160,21 +160,21 @@ func TestYearNavigation(t *testing.T) {
 	m = next.(Model)
 	end := m.cal.End
 
-	m = press(m, "right")
+	m = press(m, "]")
 	if !m.cal.End.Equal(end) {
 		t.Errorf("moved past the latest window: %v", m.cal.End)
 	}
 	// A 53-week window ending a year ago also shows the commit from two
 	// years ago, so a second step back is refused.
-	m = press(m, "left", "h")
+	m = press(m, "[", "[")
 	if want := end.AddDate(-1, 0, 0); !m.cal.End.Equal(want) || m.cal.Total != 2 {
 		t.Errorf("after stepping back: end %v (want %v), total %d", m.cal.End, want, m.cal.Total)
 	}
-	m = press(m, "l")
+	m = press(m, "]")
 	if !m.cal.End.Equal(end) {
 		t.Errorf("forward: end %v, want %v", m.cal.End, end)
 	}
-	m = press(m, "left", "t")
+	m = press(m, "[", "t")
 	if !m.cal.End.Equal(end) {
 		t.Errorf("t did not return to the latest window: %v", m.cal.End)
 	}
@@ -360,7 +360,7 @@ func TestShareColumnsMonth(t *testing.T) {
 		}
 	}
 	// A month column identical to the window column (both empty here) is dropped.
-	m = press(next.(Model), "left")
+	m = press(next.(Model), "[")
 	if month := m.cal.End.Format("Jan 2006"); strings.Contains(m.View(), month) {
 		t.Errorf("month column shown for a past window:\n%s", m.View())
 	}
@@ -385,7 +385,7 @@ func TestNarrowWindowReachesOlderCommits(t *testing.T) {
 	if m.cal.Total != 1 {
 		t.Fatalf("narrow window total = %d, want 1", m.cal.Total)
 	}
-	m = press(m, "left")
+	m = press(m, "[")
 	if m.cal.Total != 1 || !m.cal.End.Before(now.AddDate(0, -6, 0)) {
 		t.Errorf("could not move back to the older commit: %v..%v total %d", m.cal.Start, m.cal.End, m.cal.Total)
 	}
@@ -507,8 +507,8 @@ func TestGraphView(t *testing.T) {
 
 	// The time window keys do nothing here.
 	end := m.end
-	if m = press(m, "left"); !m.end.Equal(end) {
-		t.Error("left moved the heatmap window from the graph view")
+	if m = press(m, "["); !m.end.Equal(end) {
+		t.Error("[ moved the heatmap window from the graph view")
 	}
 }
 
@@ -1148,15 +1148,26 @@ func TestOwnersView(t *testing.T) {
 		}
 	}
 
+	// Arrows move to the neighboring tile: src fills the left, docs/guide
+	// sits above README.md on the right.
+	for _, step := range []struct{ key, want string }{
+		{"j", "src"}, {"l", "docs/guide"}, {"j", "README.md"}, {"l", "README.md"},
+		{"k", "docs/guide"}, {"h", "src"}, {"right", "docs/guide"}, {"left", "src"},
+	} {
+		if m = press(m, step.key); m.selectedTile().node.path != step.want {
+			t.Fatalf("%s: selected %s, want %s", step.key, m.selectedTile().node.path, step.want)
+		}
+	}
+
 	// Enter opens a directory, esc goes back and selects it again.
 	m = press(m, "enter")
 	if m.owners.dir != "src" || !strings.Contains(ansi.Strip(m.View()), "demo/src/") {
 		t.Fatalf("enter: dir %q", m.owners.dir)
 	}
-	m = press(m, "j")
+	m = press(m, "l")
 	sel := m.selectedTile()
 	if sel == nil || sel.node.path != "src/ui" {
-		t.Fatalf("second tile in src: %+v", sel)
+		t.Fatalf("tile right of src/core: %+v", sel)
 	}
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if m = next.(Model); m.owners.dir != "" || m.selectedTile().node.path != "src" {

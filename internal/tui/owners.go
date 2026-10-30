@@ -17,7 +17,7 @@ import (
 type ownersState struct {
 	root   *ownerNode
 	dir    string // path of the directory shown, "" for the repository root
-	cursor int    // selected tile, in order of size
+	cursor int    // selected tile, in order of size; the largest at first
 	lines  bool   // area by lines changed instead of file changes
 }
 
@@ -343,16 +343,15 @@ func (m Model) selectedTile() *tile {
 
 func (m *Model) ownersKey(key string) {
 	s := &m.owners
-	n := len(m.selectableTiles())
 	switch key {
 	case "up", "k":
-		s.cursor = max(s.cursor-1, 0)
+		m.moveTile(0, -1)
 	case "down", "j":
-		s.cursor = min(s.cursor+1, max(n-1, 0))
-	case "home", "g":
-		s.cursor = 0
-	case "end", "G":
-		s.cursor = max(n-1, 0)
+		m.moveTile(0, 1)
+	case "left", "h":
+		m.moveTile(-1, 0)
+	case "right", "l":
+		m.moveTile(1, 0)
 	case "esc", "backspace":
 		// Up to the parent, selecting the directory just left.
 		if dir := m.shownDir(); dir != nil && dir != s.root {
@@ -366,6 +365,48 @@ func (m *Model) ownersKey(key string) {
 	case "w":
 		s.lines = !s.lines
 		s.cursor = 0
+	}
+}
+
+// moveTile selects the tile next to the selected one in the direction
+// dx, dy: among the tiles beyond its edge, one lying alongside it first,
+// then the nearest, then the one best centered on it.
+func (m *Model) moveTile(dx, dy int) {
+	tiles := m.selectableTiles()
+	if m.owners.cursor >= len(tiles) {
+		return
+	}
+	c := tiles[m.owners.cursor]
+	type score struct{ apart, gap, offset int }
+	best, bestScore := -1, score{}
+	for i, t := range tiles {
+		// gap from c's edge to t, overlap of their spans across the move,
+		// and how far apart their centers lie across it (doubled).
+		var gap, overlap, offset int
+		switch {
+		case dx > 0:
+			gap, overlap, offset = t.x0-c.x1, min(t.y1, c.y1)-max(t.y0, c.y0), t.y0+t.y1-c.y0-c.y1
+		case dx < 0:
+			gap, overlap, offset = c.x0-t.x1, min(t.y1, c.y1)-max(t.y0, c.y0), t.y0+t.y1-c.y0-c.y1
+		case dy > 0:
+			gap, overlap, offset = t.y0-c.y1, min(t.x1, c.x1)-max(t.x0, c.x0), t.x0+t.x1-c.x0-c.x1
+		default:
+			gap, overlap, offset = c.y0-t.y1, min(t.x1, c.x1)-max(t.x0, c.x0), t.x0+t.x1-c.x0-c.x1
+		}
+		if gap < 0 {
+			continue // not beyond c's edge
+		}
+		s := score{gap: gap, offset: max(offset, -offset)}
+		if overlap <= 0 {
+			s.apart = 1
+		}
+		if best < 0 || s.apart < bestScore.apart ||
+			s.apart == bestScore.apart && (s.gap < bestScore.gap || s.gap == bestScore.gap && s.offset < bestScore.offset) {
+			best, bestScore = i, s
+		}
+	}
+	if best >= 0 {
+		m.owners.cursor = best
 	}
 }
 

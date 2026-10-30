@@ -28,10 +28,10 @@ var helpSections = []helpSection{
 		{"q ctrl+c", "quit"},
 	}},
 	{"Time window", "all but graph", []binding{
-		{"← → h l", "year back / forward"},
+		{"[ ]", "year back / forward"},
 		{"t", "latest window"},
 	}},
-	{"Lists", "files graph owners", []binding{
+	{"Lists", "files graph", []binding{
 		{"↑ ↓ k j", "select"},
 		{"pgup pgdn", "page"},
 		{"g G", "top / bottom"},
@@ -46,6 +46,7 @@ var helpSections = []helpSection{
 		{"e", "reword message"},
 	}},
 	{"Owners", "", []binding{
+		{"↑ ↓ ← → hjkl", "move to next tile"},
 		{"enter", "open directory or file"},
 		{"esc ⌫", "up a directory"},
 		{"w", "area by changes / lines"},
@@ -66,7 +67,6 @@ func (m Model) helpSections() []helpSection {
 		if s.title == "Owners" {
 			continue
 		}
-		s.scope = strings.TrimSuffix(s.scope, " owners")
 		s.keys = slices.Clone(s.keys)
 		for i, k := range s.keys {
 			if k.key == "1 – 5" {
@@ -199,13 +199,13 @@ func (m Model) footer() string {
 	case m.inspect.open:
 		keys = []binding{{"↑↓", "scroll"}, {"q", "back"}, {"?", "help"}}
 	case m.view == FilesView:
-		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"←→", "year"}, {"?", "help"}, {"q", "quit"}}
+		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"[]", "year"}, {"?", "help"}, {"q", "quit"}}
 	case m.view == GraphView:
 		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"/", "search"}, {"e", "reword"}, {"?", "help"}, {"q", "quit"}}
 	case m.view == OwnersView:
-		keys = []binding{{"↑↓", "select"}, {"enter", "open"}, {"esc", "up"}, {"w", "area"}, {"?", "help"}, {"q", "quit"}}
+		keys = []binding{{"↑↓←→", "move"}, {"enter", "open"}, {"esc", "up"}, {"w", "area"}, {"?", "help"}, {"q", "quit"}}
 	default: // heatmap and hours
-		keys = []binding{{"←→", "year"}, {"tab", "next page"}, {"?", "help"}, {"q", "quit"}}
+		keys = []binding{{"[]", "year"}, {"tab", "next page"}, {"?", "help"}, {"q", "quit"}}
 	}
 	t := m.theme
 	parts := make([]string, len(keys))
