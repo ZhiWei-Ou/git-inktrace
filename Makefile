@@ -52,15 +52,18 @@ tidy:
 check: vet test
 
 ## release: build release binaries for all platforms into bin/
-release: $(RELEASE_TARGETS) checksums
+release: $(RELEASE_TARGETS)
+	@$(MAKE) --no-print-directory checksums
 
 # release-<os>-<arch>: static release binary, e.g. make release-linux-arm64
+# Recursive variables so $* expands per target, also under make -j.
+REL_OS   = $(word 1,$(subst -, ,$*))
+REL_ARCH = $(word 2,$(subst -, ,$*))
+REL_EXT  = $(if $(filter windows,$(REL_OS)),.exe,)
+
 $(RELEASE_TARGETS): release-%:
-	$(eval OS   := $(word 1,$(subst -, ,$*)))
-	$(eval ARCH := $(word 2,$(subst -, ,$*)))
-	$(eval EXT  := $(if $(filter windows,$(OS)),.exe,))
-	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(ARCH) $(if $(filter arm,$(ARCH)),GOARM=7,) \
-		go build $(GOFLAGS_BUILD) -o $(BIN_DIR)/$(BINARY)-$(VERSION)-$(OS)-$(ARCH)$(EXT) .
+	CGO_ENABLED=0 GOOS=$(REL_OS) GOARCH=$(REL_ARCH) $(if $(filter arm,$(REL_ARCH)),GOARM=7,) \
+		go build $(GOFLAGS_BUILD) -o $(BIN_DIR)/$(BINARY)-$(VERSION)-$(REL_OS)-$(REL_ARCH)$(REL_EXT) .
 
 ## checksums: write SHA256 sums of release binaries
 checksums:
