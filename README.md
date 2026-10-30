@@ -45,8 +45,8 @@
 - **Contribution heatmap** — a GitHub-style calendar of weeks by weekdays, sized to fit the terminal (up to 53 weeks).
 - **Contribution share** — the legend lists each author with their email, with commit count and share in the current calendar month, the visible time window and the whole repository history, busiest first. A column that would repeat its neighbor is hidden — for example, only the history column is shown when the window already holds every commit.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
-- **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most. History follows renames to each file's current path, and files no longer in `HEAD` are tagged `(deleted)`. Select a file and press `i` to list the commits that touched it.
-- **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit's `*` takes its author's color. It shows every branch, remote branch and tag by default (stashes excluded); press `a` to switch to the current branch and back. Select a commit and press `enter` to copy its full hash to the system clipboard; press `i` to list the files it changed, like `git diff --stat`; press `/` to search commits by message, hash, author or email; history loads page by page as you scroll.
+- **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most. History follows renames to each file's current path, and files no longer in `HEAD` are tagged `(deleted)`. Select a file and press `enter` to list the commits that touched it.
+- **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit's `*` takes its author's color. It shows every branch, remote branch and tag by default (stashes excluded); press `a` to switch to the current branch and back. Select a commit and press `enter` to list the files it changed, like `git diff --stat`, or `o` to copy its full hash to the system clipboard; press `/` to search commits by message, hash, author or email; history loads page by page as you scroll.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
 - **Focus on one author** — filter both views to a single contributor.
 - **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
@@ -113,8 +113,8 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | `t` | Return to the latest window |
 | `a` / `A` | Next / previous author filter (heatmap and file ranking) |
 | `↑` `↓` / `k` `j` | Select the previous / next file in the ranking, commit in the graph, or scroll an inspect page |
-| `i` | Inspect the selected file (the commits that touched it) or commit (the files it changed); `q`, `esc` or `i` goes back |
-| `enter` | Copy the selected commit's full hash to the clipboard (graph) |
+| `enter` | Inspect the selected file (the commits that touched it) or commit (the files it changed); `q` or `esc` goes back |
+| `o` | Copy the selected commit's full hash to the clipboard (graph) |
 | `/` | Search the graph, highlighting matches as you type; `tab` completes `@commit`, `@author` or `@email`, `enter` jumps to the first match from the selection, `esc` closes the prompt, an empty search clears the highlight |
 | `n` / `N` | Jump to the next / previous matching commit (graph) |
 | `pgup` `pgdn`, `g` `G` | Page, or jump to the top / bottom of the file ranking or the graph |

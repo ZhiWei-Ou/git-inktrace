@@ -13,7 +13,7 @@ import (
 	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
 )
 
-// inspectState is the detail page opened with i: the commits touching a
+// inspectState is the detail page opened with enter: the commits touching a
 // ranked file, or the files changed by a graph commit.
 type inspectState struct {
 	open    bool
@@ -75,7 +75,7 @@ func (m *Model) receiveInspect(msg inspectMsg) {
 
 func (m *Model) inspectKey(key string) tea.Cmd {
 	s := &m.inspect
-	if key == "esc" || key == "i" || key == "q" {
+	if key == "esc" || key == "q" {
 		m.inspect = inspectState{}
 		return nil
 	}

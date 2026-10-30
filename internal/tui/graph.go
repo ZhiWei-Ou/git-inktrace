@@ -157,7 +157,7 @@ func (m *Model) graphKey(key string) tea.Cmd {
 		g.cursor = g.nextCommit(0, 1)
 	case "end", "G":
 		g.cursor = g.nextCommit(len(g.lines)-1, -1)
-	case "enter":
+	case "o":
 		if g.isCommit(g.cursor) {
 			return copyHash(g.lines[g.cursor].Commit.FullHash)
 		}

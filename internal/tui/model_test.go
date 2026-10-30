@@ -43,6 +43,8 @@ func press(m Model, keys ...string) Model {
 			msg = tea.KeyMsg{Type: tea.KeyLeft}
 		case "right":
 			msg = tea.KeyMsg{Type: tea.KeyRight}
+		case "enter":
+			msg = tea.KeyMsg{Type: tea.KeyEnter}
 		default:
 			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 		}
@@ -292,13 +294,14 @@ func TestGraphView(t *testing.T) {
 		t.Errorf("only the selected line should be underlined: %q", selected)
 	}
 
-	// Enter copies the selected commit's full hash.
+	// o copies the selected commit's full hash.
 	var copied string
 	copyToClipboard = func(s string) error { copied = s; return nil }
 	defer func() { copyToClipboard = clipboard.WriteAll }()
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	o := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("o")}
+	_, cmd = m.Update(o)
 	if cmd == nil {
-		t.Fatal("enter produced no command")
+		t.Fatal("o produced no command")
 	}
 	next, _ = m.Update(cmd())
 	m = next.(Model)
@@ -306,7 +309,7 @@ func TestGraphView(t *testing.T) {
 		t.Errorf("copied %q", copied)
 	}
 	copyToClipboard = func(string) error { return errors.New("no clipboard utility") }
-	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, cmd = m.Update(o)
 	next, _ = m.Update(cmd())
 	if !strings.Contains(next.(Model).View(), "Copy failed: no clipboard utility") {
 		t.Error("copy failure not reported")
@@ -542,11 +545,11 @@ func TestInspectFile(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
 	m = next.(Model)
 
-	// The cursor selects a ranked file; i lists the commits touching it.
+	// The cursor selects a ranked file; enter lists the commits touching it.
 	if m = press(m, "j"); m.cursor != 1 || m.files[1].Path != "README.md" {
 		t.Fatalf("cursor %d on %+v", m.cursor, m.files)
 	}
-	m = press(m, "k", "i")
+	m = press(m, "k", "enter")
 	out := m.View()
 	if !m.inspect.open || len(m.inspect.commits) != 2 || !strings.Contains(out, "tune parser") ||
 		!strings.Contains(out, "c3c3c3c") || strings.Contains(out, "add readme") {
@@ -574,11 +577,11 @@ func TestInspectFile(t *testing.T) {
 	if m = next.(Model); m.inspect.open || m.view != FilesView {
 		t.Errorf("esc should close the page: open %v, view %d", m.inspect.open, m.view)
 	}
-	m = press(m, "i")
+	m = press(m, "enter")
 	if next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}); cmd != nil || next.(Model).inspect.open {
 		t.Errorf("q should close the page, not quit: open %v", next.(Model).inspect.open)
 	}
-	if m = press(m, "i", "tab"); m.inspect.open || m.view != GraphView {
+	if m = press(m, "enter", "tab"); m.inspect.open || m.view != GraphView {
 		t.Errorf("tab should close the page and switch: open %v, view %d", m.inspect.open, m.view)
 	}
 }
@@ -594,7 +597,7 @@ func TestInspectCommit(t *testing.T) {
 	}
 	next, _ = next.(Model).Update(graphMsg{all: true, limit: graphPage, lines: []gitlog.GraphLine{commit("aaaaaaaaaa"), commit("bbbbbbbbbb")}})
 	m = press(next.(Model), "j")
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("i")})
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = next.(Model)
 	if cmd == nil || !m.inspect.open || m.inspect.commit.FullHash != "bbbbbbbbbb" ||
 		!strings.Contains(m.View(), "Loading changed files") {

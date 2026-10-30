@@ -87,11 +87,11 @@ func (m Model) help() string {
 	keys := "←→ year · t latest · a/A author · tab files · q quit"
 	switch {
 	case m.inspect.open:
-		keys = "↑↓ scroll · pgup/pgdn page · g/G top/bottom · q/esc/i back"
+		keys = "↑↓ scroll · pgup/pgdn page · g/G top/bottom · q/esc back"
 	case m.view == FilesView:
-		keys = "↑↓ select · i inspect · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
+		keys = "↑↓ select · enter inspect · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
 	case m.view == GraphView:
-		keys = "↑↓ select · i inspect · enter copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
+		keys = "↑↓ select · enter inspect · o copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
 	}
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }
