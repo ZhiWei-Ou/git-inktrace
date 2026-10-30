@@ -36,6 +36,8 @@ func press(m Model, keys ...string) Model {
 			msg = tea.KeyMsg{Type: tea.KeyTab}
 		case "left":
 			msg = tea.KeyMsg{Type: tea.KeyLeft}
+		case "right":
+			msg = tea.KeyMsg{Type: tea.KeyRight}
 		default:
 			msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 		}
@@ -58,24 +60,41 @@ func TestHeatmapFitsWidth(t *testing.T) {
 	}
 }
 
-func TestNavigation(t *testing.T) {
-	m := testModel(t, 120)
+func TestYearNavigation(t *testing.T) {
+	now := time.Now()
+	var commits []gitlog.Commit
+	for _, years := range []int{0, 1, 2} {
+		commits = append(commits, gitlog.Commit{Author: "Alice", Email: "alice@example.com", Time: now.AddDate(-years, 0, 0)})
+	}
+	m := New(stats.New(commits), Options{Top: 10})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = next.(Model)
 	end := m.cal.End
 
-	m = press(m, "left")
-	if !m.cursor.Equal(end.AddDate(0, 0, -7)) {
-		t.Errorf("cursor = %v, want a week before %v", m.cursor, end)
-	}
-
-	m = press(m, "[")
-	if !m.cal.End.Before(end) || m.cursor.Before(m.cal.Start) || m.cursor.After(m.cal.End) {
-		t.Errorf("after [: window %v..%v, cursor %v", m.cal.Start, m.cal.End, m.cursor)
-	}
-	m = press(m, "]", "]")
+	m = press(m, "right")
 	if !m.cal.End.Equal(end) {
-		t.Errorf("] went past today: %v", m.cal.End)
+		t.Errorf("moved past the latest window: %v", m.cal.End)
 	}
+	m = press(m, "left", "h")
+	if want := end.AddDate(-2, 0, 0); !m.cal.End.Equal(want) {
+		t.Errorf("after two years back: end %v, want %v", m.cal.End, want)
+	}
+	m = press(m, "left")
+	if want := end.AddDate(-2, 0, 0); !m.cal.End.Equal(want) {
+		t.Errorf("moved before the first commit: end %v", m.cal.End)
+	}
+	m = press(m, "l")
+	if want := end.AddDate(-1, 0, 0); !m.cal.End.Equal(want) || m.cal.Total == 0 {
+		t.Errorf("forward: end %v, total %d", m.cal.End, m.cal.Total)
+	}
+	m = press(m, "t")
+	if !m.cal.End.Equal(end) {
+		t.Errorf("t did not return to the latest window: %v", m.cal.End)
+	}
+}
 
+func TestAuthorFilter(t *testing.T) {
+	m := testModel(t, 120)
 	m = press(m, "a")
 	if m.author != 0 || m.cal.Total >= 40 {
 		t.Errorf("author filter: author %d, total %d", m.author, m.cal.Total)

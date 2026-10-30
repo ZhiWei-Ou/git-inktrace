@@ -36,7 +36,6 @@ type Model struct {
 	view          view
 	author        int       // stats.AllAuthors or an author index
 	end           time.Time // last day of the calendar
-	cursor        time.Time // selected day
 
 	cal    stats.Calendar
 	files  []stats.FileStat
@@ -46,7 +45,6 @@ type Model struct {
 // New creates a model showing the year up to today, or up to the latest
 // commit when the repository has been idle for longer than that.
 func New(data *stats.Data, opts Options) Model {
-	end := defaultEnd(data)
 	return Model{
 		data:   data,
 		opts:   opts,
@@ -54,8 +52,7 @@ func New(data *stats.Data, opts Options) Model {
 		width:  80,
 		height: 24,
 		author: stats.AllAuthors,
-		end:    end,
-		cursor: end,
+		end:    defaultEnd(data),
 	}
 }
 
@@ -71,13 +68,6 @@ func today() time.Time { return midnight(time.Now()) }
 
 func midnight(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.Local)
-}
-
-// daysBetween counts calendar days from a to b, independent of DST shifts.
-func daysBetween(a, b time.Time) int {
-	ua := time.Date(a.Year(), a.Month(), a.Day(), 0, 0, 0, 0, time.UTC)
-	ub := time.Date(b.Year(), b.Month(), b.Day(), 0, 0, 0, 0, time.UTC)
-	return int(ub.Sub(ua).Hours() / 24)
 }
 
 // Run starts the TUI in the alternate screen.
@@ -116,17 +106,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cycleAuthor(1)
 	case "A":
 		m.cycleAuthor(-1)
-	case "[":
-		m.shift(-len(m.cal.Weeks) * 7)
-	case "]":
-		m.shift(len(m.cal.Weeks) * 7)
+	case "left", "h":
+		m.shiftYears(-1)
+	case "right", "l":
+		m.shiftYears(1)
 	case "t":
 		m.end = defaultEnd(m.data)
-		m.cursor = m.end
 	default:
-		if m.view == heatmapView {
-			m.moveCursor(msg.String())
-		} else {
+		if m.view == filesView {
 			m.scrollFiles(msg.String())
 		}
 		return m, nil
@@ -152,38 +139,17 @@ func (m *Model) cycleAuthor(step int) {
 	m.author = pos
 }
 
-// shift moves the calendar window by days, never past today.
-func (m *Model) shift(days int) {
-	end := m.end.AddDate(0, 0, days)
-	if t := today(); end.After(t) {
-		end = t
+// shiftYears moves the calendar window by whole years, staying between the
+// first commit and the default end date.
+func (m *Model) shiftYears(n int) {
+	end := m.end.AddDate(n, 0, 0)
+	if latest := defaultEnd(m.data); end.After(latest) {
+		end = latest
 	}
-	m.cursor = m.cursor.AddDate(0, 0, daysBetween(m.end, end))
+	if end.Before(midnight(m.data.Earliest())) {
+		return
+	}
 	m.end = end
-}
-
-func (m *Model) moveCursor(key string) {
-	days := 0
-	switch key {
-	case "left", "h":
-		days = -7
-	case "right", "l":
-		days = 7
-	case "up", "k":
-		days = -1
-	case "down", "j":
-		days = 1
-	case "home", "g":
-		m.cursor = m.cal.Start
-		return
-	case "end", "G":
-		m.cursor = m.cal.End
-		return
-	}
-	next := m.cursor.AddDate(0, 0, days)
-	if !next.Before(m.cal.Start) && !next.After(m.cal.End) {
-		m.cursor = next
-	}
 }
 
 func (m *Model) scrollFiles(key string) {
@@ -214,9 +180,6 @@ func (m *Model) clampScroll() {
 func (m *Model) refresh() {
 	weeks := min(max((m.width-gutter)/cellWidth, 1), maxWeeks)
 	m.cal = m.data.Calendar(m.end, weeks, m.author)
-	if m.cursor.IsZero() || m.cursor.Before(m.cal.Start) || m.cursor.After(m.cal.End) {
-		m.cursor = m.cal.End
-	}
 	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.author, m.opts.Top)
 	m.clampScroll()
 }

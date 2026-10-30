@@ -40,7 +40,16 @@ func (m Model) header() string {
 	if m.opts.Branch != "" {
 		left += t.dim.Render(" · " + m.opts.Branch)
 	}
-	right := t.dim.Render(formatDate(m.cal.Start)+" – "+formatDate(m.cal.End)) + " "
+	// Arrows show which way more history lies.
+	back, fwd := "  ", "  "
+	if !m.end.AddDate(-1, 0, 0).Before(midnight(m.data.Earliest())) {
+		back = "← "
+	}
+	if m.end.Before(defaultEnd(m.data)) {
+		fwd = " →"
+	}
+	right := t.accent.Render(back) + t.dim.Render(formatDate(m.cal.Start)+" – "+formatDate(m.cal.End)) +
+		t.accent.Render(fwd) + " "
 	return spread(left, right, m.width)
 }
 
@@ -64,9 +73,9 @@ func (m Model) tabs() string {
 }
 
 func (m Model) help() string {
-	keys := "←↓↑→ move · [ ] prev/next · t today · a/A author · tab files · q quit"
+	keys := "←→ year · t latest · a/A author · tab files · q quit"
 	if m.view == filesView {
-		keys = "↑↓ scroll · pgup/pgdn page · [ ] prev/next · t today · a/A author · tab heatmap · q quit"
+		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab heatmap · q quit"
 	}
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }
@@ -85,11 +94,8 @@ func (m Model) heatmap() string {
 				b.WriteString(strings.Repeat(" ", cellWidth))
 				continue
 			}
-			style := lipgloss.NewStyle().Foreground(t.cellColor(day.Top, m.cal.Level(day.Total)))
-			if day.Date.Equal(m.cursor) {
-				style = style.Inherit(t.cursor)
-			}
-			b.WriteString(style.Render(cellGlyph) + " ")
+			color := t.cellColor(day.Top, m.cal.Level(day.Total))
+			b.WriteString(lipgloss.NewStyle().Foreground(color).Render(cellGlyph) + " ")
 		}
 		b.WriteString("\n")
 	}
@@ -109,7 +115,6 @@ func (m Model) heatmap() string {
 		}
 	}
 	b.WriteString("\n" + spread(scale, t.dim.Render(fmt.Sprintf("%d active days ", active)), m.width) + "\n\n")
-	b.WriteString(m.dayDetail() + "\n\n")
 	b.WriteString(m.authorLegend() + "\n")
 	return b.String()
 }
@@ -142,34 +147,6 @@ func (m Model) monthLabels() string {
 		next = l.col + len(l.text) + 1
 	}
 	return m.theme.dim.Render(strings.TrimRight(string(line), " "))
-}
-
-func (m Model) dayDetail() string {
-	t := m.theme
-	day, ok := m.dayAt(m.cursor)
-	if !ok {
-		return ""
-	}
-	s := strings.Repeat(" ", gutter) + t.text.Bold(true).Render(day.Date.Format("Mon, Jan 2 2006"))
-	if day.Total == 0 {
-		return s + t.dim.Render(" · no commits")
-	}
-	s += t.dim.Render(fmt.Sprintf(" · %d %s  ", day.Total, plural(day.Total, "commit", "commits")))
-	ids := make([]int, 0, len(day.ByAuthor))
-	for id := range day.ByAuthor {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool {
-		if day.ByAuthor[ids[i]] != day.ByAuthor[ids[j]] {
-			return day.ByAuthor[ids[i]] > day.ByAuthor[ids[j]]
-		}
-		return ids[i] < ids[j]
-	})
-	var parts []string
-	for _, id := range ids {
-		parts = append(parts, m.authorChip(id, day.ByAuthor[id], false))
-	}
-	return wrap(s, parts, strings.Repeat(" ", gutter), m.width)
 }
 
 // authorLegend lists the authors active in the window in their colors.
@@ -217,14 +194,6 @@ func (m Model) authorChip(id, commits int, selected bool) string {
 	}
 	return lipgloss.NewStyle().Foreground(t.authorColor(id)).Render(cellGlyph) + " " +
 		name.Render(m.data.Authors[id].Name) + t.dim.Render(fmt.Sprintf(" %d", commits))
-}
-
-func (m Model) dayAt(date time.Time) (stats.Day, bool) {
-	n := daysBetween(m.cal.Start, date)
-	if n < 0 || n/7 >= len(m.cal.Weeks) {
-		return stats.Day{}, false
-	}
-	return m.cal.Weeks[n/7][n%7], true
 }
 
 func (m Model) fileRows() int {

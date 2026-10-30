@@ -12,7 +12,7 @@
 </p>
 
 ```text
- git-inktrace  demo · main                                       Jan 4, 2026 – Oct 30, 2026
+ git-inktrace  demo · main                                     ← Jan 4, 2026 – Oct 30, 2026
   Heatmap   Files                                                 189 commits · all authors
 
      Jan     Feb     Mar       Apr     May       Jun     Jul     Aug       Sep     Oct
@@ -26,12 +26,10 @@
 
      Less ■ ■ ■ ■ ■ More                                                    144 active days
 
-     Fri, Oct 16 2026 · 1 commit  ■ Ivan 1
-
      ■ Carol 22  ■ Dave 22  ■ Bob 24  ■ Grace 22  ■ Heidi 21  ■ Alice 22  ■ Erin 19
      ■ Ivan 20  ■ +1 other 17
 
- ←↓↑→ move · [ ] prev/next · t today · a/A author · tab files · q quit
+ ←→ year · t latest · a/A author · tab files · q quit
 ```
 
 ## Features
@@ -40,7 +38,7 @@
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most.
 - **Focus on one author** — filter both views to a single contributor; authors are merged by email, so name changes do not split them.
-- **Browse history** — step the window back and forth through the years and inspect any day's commits by author.
+- **Browse history by year** — step the window back and forth one year at a time with the arrow keys; arrows in the title bar show which way more history lies.
 - **Works as a git subcommand** — put `git-inktrace` on your `PATH` and run `git inktrace` in any repository.
 
 ## Quick Start
@@ -86,19 +84,17 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 
 ### Keys
 
-| Key | Heatmap | Files |
-| --- | --- | --- |
-| `tab`, `1`, `2` | switch view | switch view |
-| `←` `→` / `h` `l` | previous / next week | |
-| `↑` `↓` / `k` `j` | previous / next day | scroll |
-| `pgup` `pgdn` | | scroll a page |
-| `g` `G` | first / last day | top / bottom |
-| `[` `]` | previous / next time window | previous / next time window |
-| `t` | back to the latest window | back to the latest window |
-| `a` / `A` | next / previous author filter | next / previous author filter |
-| `q`, `esc` | quit | quit |
+| Key | Action |
+| --- | --- |
+| `tab`, `1`, `2` | Switch between the heatmap and the file ranking |
+| `←` `→` / `h` `l` | Move the window one year back / forward |
+| `t` | Return to the latest window |
+| `a` / `A` | Next / previous author filter |
+| `↑` `↓` / `k` `j` | Scroll the file ranking |
+| `pgup` `pgdn`, `g` `G` | Page, or jump to the top / bottom of the file ranking |
+| `q`, `esc` | Quit |
 
-The file ranking always covers the same dates and author filter as the heatmap.
+The heatmap is read-only. The file ranking always covers the same dates and author filter as the heatmap. You can move back until the window reaches the first commit, and forward until the latest window.
 
 ### Building
 
