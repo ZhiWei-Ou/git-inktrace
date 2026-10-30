@@ -29,12 +29,14 @@ func run() error {
 		heatmap     = flag.Bool("heatmap", false, "open on the heatmap (default)")
 		files       = flag.Bool("files", false, "open on the file ranking")
 		graph       = flag.Bool("graph", false, "open on the branch graph")
+		hours       = flag.Bool("hours", false, "open on the punch card of commit hours")
 		showVersion = flag.Bool("version", false, "print version and exit")
 	)
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: git-inktrace [flags]\n\n"+
-			"Show a contribution heatmap and the most frequently changed files\n"+
-			"of the git repository in the current directory.\n\nFlags:\n")
+			"Show a contribution heatmap, the most frequently changed files, the\n"+
+			"branch graph and a punch card of commit hours of the git repository\n"+
+			"in the current directory.\n\nFlags:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
@@ -42,7 +44,7 @@ func run() error {
 		flag.Usage()
 		return fmt.Errorf("unexpected argument %q", flag.Arg(0))
 	}
-	view, err := startView(*heatmap, *files, *graph)
+	view, err := startView(*heatmap, *files, *graph, *hours)
 	if err != nil {
 		return err
 	}
@@ -75,19 +77,20 @@ func run() error {
 	})
 }
 
-// startView picks the first page from the -heatmap, -files and -graph flags.
-func startView(heatmap, files, graph bool) (tui.View, error) {
+// startView picks the first page from the -heatmap, -files, -graph and
+// -hours flags.
+func startView(heatmap, files, graph, hours bool) (tui.View, error) {
 	view, n := tui.HeatmapView, 0
 	for _, f := range []struct {
 		set  bool
 		view tui.View
-	}{{heatmap, tui.HeatmapView}, {files, tui.FilesView}, {graph, tui.GraphView}} {
+	}{{heatmap, tui.HeatmapView}, {files, tui.FilesView}, {graph, tui.GraphView}, {hours, tui.HoursView}} {
 		if f.set {
 			view, n = f.view, n+1
 		}
 	}
 	if n > 1 {
-		return 0, fmt.Errorf("-heatmap, -files and -graph are mutually exclusive")
+		return 0, fmt.Errorf("-heatmap, -files, -graph and -hours are mutually exclusive")
 	}
 	return view, nil
 }

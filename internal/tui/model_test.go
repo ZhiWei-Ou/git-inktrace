@@ -129,6 +129,34 @@ func TestFilesView(t *testing.T) {
 	}
 }
 
+func TestHoursView(t *testing.T) {
+	for _, width := range []int{60, 100} {
+		m := press(testModel(t, width), "4")
+		if m.view != HoursView || m.punch.Total != m.cal.Total || m.punch.Total == 0 {
+			t.Fatalf("width %d: view %d, punch %d, calendar %d", width, m.view, m.punch.Total, m.cal.Total)
+		}
+		out := m.View()
+		for _, want := range []string{"Sun", "Sat", "21", "peak", "after hours", "weekends", "Alice"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("width %d: punch card missing %q:\n%s", width, want, out)
+			}
+		}
+		for _, line := range strings.Split(out, "\n") {
+			if w := lipgloss.Width(line); w > width {
+				t.Errorf("width %d: line %d wide: %q", width, w, line)
+			}
+		}
+	}
+	// The author filter narrows the card like the calendar.
+	m := press(testModel(t, 100), "4", "a")
+	if m.punch.Total != m.cal.Total || m.punch.Total >= press(testModel(t, 100), "4").punch.Total {
+		t.Errorf("filtered punch card total %d, calendar %d", m.punch.Total, m.cal.Total)
+	}
+	if m = press(m, "tab"); m.view != HeatmapView {
+		t.Errorf("tab from hours: view %d", m.view)
+	}
+}
+
 func TestShareColumns(t *testing.T) {
 	now := time.Now()
 	commits := []gitlog.Commit{
@@ -354,6 +382,9 @@ func TestStartView(t *testing.T) {
 	}
 	if m := New(data, Options{View: FilesView}); m.view != FilesView || m.Init() != nil {
 		t.Errorf("files start: view %d", m.view)
+	}
+	if m := New(data, Options{View: HoursView}); m.view != HoursView || m.Init() != nil {
+		t.Errorf("hours start: view %d", m.view)
 	}
 	// Starting on the graph loads its first page once.
 	m := New(data, Options{View: GraphView})

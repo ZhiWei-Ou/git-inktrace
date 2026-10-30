@@ -1,4 +1,5 @@
-// Package stats aggregates commit history into calendar and file rankings.
+// Package stats aggregates commit history into calendars, punch cards and
+// file rankings.
 package stats
 
 import (
@@ -27,6 +28,7 @@ type commit struct {
 	author  int
 	day     time.Time // local midnight
 	time    time.Time
+	clock   time.Time           // author date in the author's time zone
 	files   []gitlog.FileChange // paths resolved to the file's latest name
 }
 
@@ -94,7 +96,7 @@ func New(commits []gitlog.Commit, tracked []string) *Data {
 		local := c.Time.Local()
 		d.commits[i] = commit{
 			hash: c.Hash, subject: c.Subject, author: rank[ids[i]],
-			day: midnight(local), time: local, files: files[i],
+			day: midnight(local), time: local, clock: c.Time, files: files[i],
 		}
 		for _, k := range identityKeys(c.Author, c.Email) {
 			d.identities[k] = rank[ids[i]]
@@ -190,12 +192,7 @@ func (d *Data) Calendar(end time.Time, weeks, author int) Calendar {
 	for w := range cal.Weeks {
 		for wd := range cal.Weeks[w] {
 			day := &cal.Weeks[w][wd]
-			for a, n := range day.ByAuthor {
-				// Ties go to the higher-ranked (lower index) author.
-				if day.Top < 0 || n > day.ByAuthor[day.Top] || (n == day.ByAuthor[day.Top] && a < day.Top) {
-					day.Top = a
-				}
-			}
+			day.Top = topAuthor(day.ByAuthor)
 			if day.Total > cal.Max {
 				cal.Max = day.Total
 			}
@@ -205,12 +202,73 @@ func (d *Data) Calendar(end time.Time, weeks, author int) Calendar {
 }
 
 // Level maps a daily total to an intensity from 0 (none) to 4 (busiest).
-func (c Calendar) Level(total int) int {
-	if total <= 0 || c.Max <= 0 {
+func (c Calendar) Level(total int) int { return level(total, c.Max) }
+
+// Slot is one weekday-hour cell of a punch card.
+type Slot struct {
+	Total int
+	Top   int // author with most commits in the slot, -1 when empty
+}
+
+// PunchCard counts commits by weekday (rows, Sunday first) and hour, read
+// on each author's own clock: a commit made at 23:00 in Tokyo lands at 23
+// wherever the history is viewed.
+type PunchCard struct {
+	Slots [7][24]Slot
+	Max   int // highest slot total
+	Total int
+}
+
+// PunchCard builds the punch card of the commits between from and to
+// (inclusive dates), counting only author's commits unless author is
+// AllAuthors.
+func (d *Data) PunchCard(from, to time.Time, author int) PunchCard {
+	from, to = midnight(from.Local()), midnight(to.Local())
+	var card PunchCard
+	var byAuthor [7][24]map[int]int
+	for _, c := range d.commits {
+		if author != AllAuthors && c.author != author || c.day.Before(from) || c.day.After(to) {
+			continue
+		}
+		wd, h := c.clock.Weekday(), c.clock.Hour()
+		if byAuthor[wd][h] == nil {
+			byAuthor[wd][h] = map[int]int{}
+		}
+		byAuthor[wd][h][c.author]++
+		card.Slots[wd][h].Total++
+		card.Total++
+	}
+	for wd := range card.Slots {
+		for h := range card.Slots[wd] {
+			slot := &card.Slots[wd][h]
+			slot.Top = topAuthor(byAuthor[wd][h])
+			card.Max = max(card.Max, slot.Total)
+		}
+	}
+	return card
+}
+
+// Level maps a slot total to an intensity from 0 (none) to 4 (busiest).
+func (p PunchCard) Level(total int) int { return level(total, p.Max) }
+
+func level(total, most int) int {
+	if total <= 0 || most <= 0 {
 		return 0
 	}
-	l := (4*total + c.Max - 1) / c.Max
+	l := (4*total + most - 1) / most
 	return min(max(l, 1), 4)
+}
+
+// topAuthor returns the author with the most commits, or -1 when there are
+// none. Ties go to the higher-ranked (lower index) author.
+func topAuthor(byAuthor map[int]int) int {
+	top := -1
+	for a, n := range byAuthor {
+		if top < 0 || n > byAuthor[top] || (n == byAuthor[top] && a < top) {
+			top = a
+		}
+	}
+	return top
 }
 
 // AuthorCommits counts each author's commits between from and to (inclusive
@@ -272,12 +330,7 @@ func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 	}
 	out := make([]FileStat, 0, len(files))
 	for _, a := range files {
-		a.TopAuthor = -1
-		for id, n := range a.byAuthor {
-			if a.TopAuthor < 0 || n > a.byAuthor[a.TopAuthor] || (n == a.byAuthor[a.TopAuthor] && id < a.TopAuthor) {
-				a.TopAuthor = id
-			}
-		}
+		a.TopAuthor = topAuthor(a.byAuthor)
 		out = append(out, a.FileStat)
 	}
 	sort.Slice(out, func(i, j int) bool {

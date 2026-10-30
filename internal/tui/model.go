@@ -1,4 +1,5 @@
-// Package tui renders the interactive heatmap, file ranking and branch graph.
+// Package tui renders the interactive heatmap, file ranking, branch graph
+// and punch card.
 package tui
 
 import (
@@ -17,6 +18,7 @@ const (
 	HeatmapView View = iota
 	FilesView
 	GraphView
+	HoursView
 	viewCount
 )
 
@@ -46,6 +48,7 @@ type Model struct {
 	// Commits per author, ignoring the author filter: in the calendar month
 	// of the window's last day, and in the whole window.
 	monthShares, windowShares []int
+	punch                     stats.PunchCard
 	files                     []stats.FileStat
 	scroll                    int // first visible row of the file ranking
 	cursor                    int // selected row of the file ranking
@@ -145,7 +148,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.inspect.open {
 		switch msg.String() {
-		case "ctrl+c", "tab", "shift+tab", "1", "2", "3":
+		case "ctrl+c", "tab", "shift+tab", "1", "2", "3", "4":
 			m.inspect = inspectState{} // leave it for the view keys below
 		default:
 			return m, m.inspectKey(msg.String())
@@ -166,6 +169,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.setView(FilesView)
 	case "3":
 		return m, m.setView(GraphView)
+	case "4":
+		return m, m.setView(HoursView)
 	case "a", "A":
 		if m.view == GraphView {
 			return m, m.graphKey(msg.String()) // a switches the graph's branches
@@ -284,13 +289,15 @@ func follow(cursor, scroll, rows, n int) int {
 	return max(min(scroll, n-rows), 0)
 }
 
-// refresh recomputes the calendar and ranking for the current window and filter.
+// refresh recomputes the calendar, punch card and ranking for the current
+// window and filter.
 func (m *Model) refresh() {
 	weeks := min(max((m.width-gutter)/cellWidth, 1), maxWeeks)
 	m.cal = m.data.Calendar(m.end, weeks, m.author)
 	monthStart := time.Date(m.cal.End.Year(), m.cal.End.Month(), 1, 0, 0, 0, 0, time.Local)
 	m.monthShares = m.data.AuthorCommits(monthStart, m.cal.End)
 	m.windowShares = m.data.AuthorCommits(m.cal.Start, m.cal.End)
+	m.punch = m.data.PunchCard(m.cal.Start, m.cal.End, m.author)
 	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.author, m.opts.Top)
 	m.clampScroll()
 }

@@ -1,6 +1,6 @@
 <h1 align="center">git-inktrace</h1>
 
-<p align="center">A terminal UI that shows who worked on a git repository, when, which files change the most, and how branches evolved.</p>
+<p align="center">A terminal UI that shows who worked on a git repository, when — down to the hour — which files change the most, and how branches evolved.</p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
@@ -47,8 +47,9 @@
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most. History follows renames to each file's current path, and files no longer in `HEAD` are tagged `(deleted)`. Select a file and press `enter` to list the commits that touched it.
 - **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit's `*` takes its author's color. It shows every branch, remote branch and tag by default (stashes excluded); press `a` to switch to the current branch and back. Select a commit and press `enter` to list the files it changed, like `git diff --stat`, or `o` to copy its full hash to the system clipboard; press `/` to search commits by message, hash, author or email; history loads page by page as you scroll.
+- **Punch card** — commits by weekday and hour, read on each author's own clock, so a commit made at 23:00 in Tokyo counts at 23:00 wherever you look at it. Each slot takes the color of its busiest author and grows with how busy it was; weekday totals sit on the right and an hourly profile below. The summary names the peak hour and the share of commits made after hours (weekdays before 9:00 or from 18:00) and on weekends.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
-- **Focus on one author** — filter both views to a single contributor.
+- **Focus on one author** — filter the heatmap, the file ranking and the punch card to a single contributor.
 - **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
 - **Works as a git subcommand** — put `git-inktrace` on your `PATH` and run `git inktrace` in any repository.
 
@@ -83,6 +84,7 @@ git-inktrace [flags]
   -heatmap    open on the heatmap (default)
   -files      open on the file ranking
   -graph      open on the branch graph
+  -hours      open on the punch card of commit hours
   -version    print version and exit
 ```
 
@@ -93,6 +95,7 @@ git inktrace -C ~/src/project     # inspect another repository
 git inktrace -all                 # count commits on every branch and tag, skipping stashes
 git inktrace -top 0               # rank every changed file
 git inktrace -graph               # open straight on the branch graph
+git inktrace -hours               # see when the team commits
 ```
 
 Authors are merged the way `git shortlog` groups them, plus by email: commits that share an email (case-insensitive) or a name belong to one author. To join identities that share neither, add a [`.mailmap`](https://git-scm.com/docs/gitmailmap) file to the repository, for example:
@@ -108,10 +111,10 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 
 | Key | Action |
 | --- | --- |
-| `tab`, `1`, `2`, `3` | Switch between the heatmap, the file ranking and the graph |
+| `tab`, `1`, `2`, `3`, `4` | Switch between the heatmap, the file ranking, the graph and the punch card |
 | `←` `→` / `h` `l` | Move the window one year back / forward (one window at a time when the terminal shows less than a year) |
 | `t` | Return to the latest window |
-| `a` / `A` | Next / previous author filter (heatmap and file ranking) |
+| `a` / `A` | Next / previous author filter (heatmap, file ranking and punch card) |
 | `↑` `↓` / `k` `j` | Select the previous / next file in the ranking, commit in the graph, or scroll an inspect page |
 | `enter` | Inspect the selected file (the commits that touched it) or commit (the files it changed); `q` or `esc` goes back |
 | `o` | Copy the selected commit's full hash to the clipboard (graph) |

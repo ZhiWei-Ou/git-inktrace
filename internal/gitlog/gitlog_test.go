@@ -12,13 +12,13 @@ import (
 func TestParse(t *testing.T) {
 	// Shaped like `git log -M --numstat -z` output.
 	out := strings.Join([]string{
-		"\x1eaaa\x1fAlice\x1falice@example.com\x1f1700000000\x1fsubject",
+		"\x1eaaa\x1fAlice\x1falice@example.com\x1f2023-11-15T06:13:20+08:00\x1fsubject",
 		"\n3\t1\tmain.go",
 		"-\t-\tlogo.png",
 		"2\t0\t", "old dir/a.go", "new dir/a.go",
 		"10\t0\tdocs/read me.md",
-		"\x1ebbb\x1fBob\x1fbob@example.com\x1f1700086400\x1fsubject",
-		"\x1eccc\x1fAlice\x1falice@example.com\x1f1700172800\x1fsubject",
+		"\x1ebbb\x1fBob\x1fbob@example.com\x1f2023-11-15T22:13:20Z\x1fsubject",
+		"\x1eccc\x1fAlice\x1falice@example.com\x1f2023-11-16T22:13:20Z\x1fsubject",
 		"\n1\t1\tmain.go",
 		"",
 	}, "\x00")
@@ -33,6 +33,10 @@ func TestParse(t *testing.T) {
 	c := commits[0]
 	if c.Hash != "aaa" || c.Subject != "subject" || c.Author != "Alice" || c.Email != "alice@example.com" || c.Time.Unix() != 1700000000 {
 		t.Errorf("unexpected header: %+v", c)
+	}
+	// The author's time zone is kept for the punch card.
+	if _, off := c.Time.Zone(); c.Time.Hour() != 6 || off != 8*3600 {
+		t.Errorf("author clock = %v, want 06:13 +08:00", c.Time)
 	}
 	want := []FileChange{
 		{Path: "main.go", Added: 3, Deleted: 1},
@@ -58,8 +62,8 @@ func TestParseMalformed(t *testing.T) {
 		"1\t1\tfile.go\x00",
 		"\x1eaaa\x1fAlice\x00",
 		"\x1eaaa\x1fA\x1fa@x\x1fnot-a-time\x1fsubject\x00",
-		"\x1eaaa\x1fA\x1fa@x\x1f1\x1fsubject\x00\nbad entry\x00",
-		"\x1eaaa\x1fA\x1fa@x\x1f1\x1fsubject\x00\n1\t0\t\x00old\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1f2023-11-15T06:13:20+08:00\x1fsubject\x00\nbad entry\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1f2023-11-15T06:13:20+08:00\x1fsubject\x00\n1\t0\t\x00old\x00",
 	} {
 		if _, err := Parse(strings.NewReader(in)); err == nil {
 			t.Errorf("Parse(%q) succeeded, want error", in)

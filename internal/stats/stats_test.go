@@ -111,6 +111,42 @@ func TestCalendar(t *testing.T) {
 	}
 }
 
+func TestPunchCard(t *testing.T) {
+	d := sample()
+	card := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 31, 0), AllAuthors)
+	if card.Total != 5 || card.Max != 1 {
+		t.Errorf("total = %d, max = %d", card.Total, card.Max)
+	}
+	// Mar 10 is a Tuesday and Mar 11 a Wednesday.
+	if s := card.Slots[time.Tuesday][9]; s.Total != 1 || s.Top != 0 {
+		t.Errorf("Tue 09 = %+v", s)
+	}
+	if s := card.Slots[time.Wednesday][9]; s.Total != 1 || s.Top != 1 {
+		t.Errorf("Wed 09 = %+v", s)
+	}
+	if s := card.Slots[time.Monday][0]; s.Total != 0 || s.Top != -1 {
+		t.Errorf("empty slot = %+v", s)
+	}
+
+	if bob := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 31, 0), 1); bob.Total != 2 || bob.Slots[time.Tuesday][8].Top != 1 {
+		t.Errorf("bob card = %+v", bob)
+	}
+	if early := d.PunchCard(at(2026, 3, 1, 0), at(2026, 3, 9, 0), AllAuthors); early.Total != 1 {
+		t.Errorf("window total = %d, want 1", early.Total)
+	}
+}
+
+func TestPunchCardUsesAuthorClock(t *testing.T) {
+	tokyo := time.FixedZone("JST", 9*3600)
+	// Saturday 23:30 in Tokyo, whatever the local zone is.
+	when := time.Date(2026, 3, 14, 23, 30, 0, 0, tokyo)
+	d := New([]gitlog.Commit{{Author: "Aki", Email: "aki@example.jp", Time: when}}, nil)
+	card := d.PunchCard(when.AddDate(0, 0, -2), when.AddDate(0, 0, 2), AllAuthors)
+	if card.Slots[time.Saturday][23].Total != 1 {
+		t.Errorf("commit not at Sat 23: %+v", card.Slots)
+	}
+}
+
 func TestAuthorCommits(t *testing.T) {
 	d := sample()
 	got := d.AuthorCommits(at(2026, 3, 10, 0), at(2026, 3, 31, 0))

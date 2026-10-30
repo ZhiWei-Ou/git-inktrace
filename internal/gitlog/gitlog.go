@@ -27,7 +27,7 @@ type Commit struct {
 	Subject string
 	Author  string
 	Email   string
-	Time    time.Time
+	Time    time.Time // author date, in the author's time zone
 	Files   []FileChange
 }
 
@@ -37,7 +37,7 @@ const (
 )
 
 // commitFormat is the header Parse expects before each commit's numstat.
-var commitFormat = "--format=" + recordSep + strings.Join([]string{"%H", "%aN", "%aE", "%at", "%s"}, fieldSep)
+var commitFormat = "--format=" + recordSep + strings.Join([]string{"%H", "%aN", "%aE", "%aI", "%s"}, fieldSep)
 
 // TopLevel returns the root directory of the work tree containing dir.
 func TopLevel(dir string) (string, error) {
@@ -193,11 +193,11 @@ func parseHeader(s string) (Commit, error) {
 	if len(f) != 5 {
 		return Commit{}, fmt.Errorf("malformed commit header: %q", s)
 	}
-	ts, err := strconv.ParseInt(f[3], 10, 64)
+	ts, err := time.Parse(time.RFC3339, f[3])
 	if err != nil {
 		return Commit{}, fmt.Errorf("malformed commit time %q: %w", f[3], err)
 	}
-	return Commit{Hash: f[0], Author: f[1], Email: f[2], Time: time.Unix(ts, 0), Subject: f[4]}, nil
+	return Commit{Hash: f[0], Author: f[1], Email: f[2], Time: ts, Subject: f[4]}, nil
 }
 
 // parseNumstat decodes "added\tdeleted\tpath"; path is empty for a rename.

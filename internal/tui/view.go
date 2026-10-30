@@ -34,6 +34,8 @@ func (m Model) View() string {
 		b.WriteString(m.fileTable())
 	case m.view == GraphView:
 		b.WriteString(m.graphView())
+	case m.view == HoursView:
+		b.WriteString(m.punchCard())
 	}
 	b.WriteString("\n" + m.help())
 	return b.String()
@@ -64,7 +66,7 @@ func (m Model) header() string {
 func (m Model) tabs() string {
 	t := m.theme
 	var parts []string
-	for i, name := range []string{"Heatmap", "Files", "Graph"} {
+	for i, name := range []string{"Heatmap", "Files", "Graph", "Hours"} {
 		if View(i) == m.view {
 			parts = append(parts, t.activeTab.Render(name))
 		} else {
@@ -91,7 +93,9 @@ func (m Model) help() string {
 	case m.view == FilesView:
 		keys = "↑↓ select · enter inspect · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
 	case m.view == GraphView:
-		keys = "↑↓ select · enter inspect · o copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
+		keys = "↑↓ select · enter inspect · o copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab hours · q quit"
+	case m.view == HoursView:
+		keys = "←→ year · t latest · a/A author · tab heatmap · q quit"
 	}
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }
