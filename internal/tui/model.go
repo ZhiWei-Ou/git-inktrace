@@ -48,8 +48,10 @@ type Model struct {
 	monthShares, windowShares []int
 	files                     []stats.FileStat
 	scroll                    int // first visible row of the file ranking
+	cursor                    int // selected row of the file ranking
 
-	graph graphState
+	graph   graphState
+	inspect inspectState // details of the selected file or commit
 }
 
 // New creates a model showing the year up to today, or up to the latest
@@ -112,6 +114,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.receiveGraph(msg)
 	case copiedMsg:
 		m.receiveCopied(msg)
+	case inspectMsg:
+		m.receiveInspect(msg)
 	}
 	return m, nil
 }
@@ -139,9 +143,19 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return model, tea.Batch(cmds...)
 	}
+	if m.inspect.open {
+		switch msg.String() {
+		case "q", "ctrl+c", "tab", "shift+tab", "1", "2", "3":
+			m.inspect = inspectState{} // leave it for the view keys below
+		default:
+			return m, m.inspectKey(msg.String())
+		}
+	}
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "i":
+		return m, m.openInspect()
 	case "tab":
 		return m, m.setView((m.view + 1) % viewCount)
 	case "shift+tab":
@@ -227,27 +241,47 @@ func (m Model) hasEarlier() bool {
 }
 
 func (m *Model) scrollFiles(key string) {
-	page := max(m.fileRows(), 1)
-	switch key {
-	case "up", "k":
-		m.scroll--
-	case "down", "j":
-		m.scroll++
-	case "pgup", "ctrl+u":
-		m.scroll -= page
-	case "pgdown", "ctrl+d", " ":
-		m.scroll += page
-	case "home", "g":
-		m.scroll = 0
-	case "end", "G":
-		m.scroll = len(m.files)
-	}
+	m.cursor = moveCursor(key, m.cursor, len(m.files), m.fileRows())
 	m.clampScroll()
 }
 
 func (m *Model) clampScroll() {
-	m.scroll = min(m.scroll, len(m.files)-m.fileRows())
-	m.scroll = max(m.scroll, 0)
+	m.cursor = max(min(m.cursor, len(m.files)-1), 0)
+	m.scroll = follow(m.cursor, m.scroll, m.fileRows(), len(m.files))
+}
+
+// moveCursor applies a list navigation key to the selected row of n rows,
+// page rows at a time for the page keys.
+func moveCursor(key string, cursor, n, page int) int {
+	page = max(page, 1)
+	switch key {
+	case "up", "k":
+		cursor--
+	case "down", "j":
+		cursor++
+	case "pgup", "ctrl+u":
+		cursor -= page
+	case "pgdown", "ctrl+d", " ":
+		cursor += page
+	case "home", "g":
+		cursor = 0
+	case "end", "G":
+		cursor = n - 1
+	}
+	return max(min(cursor, n-1), 0)
+}
+
+// follow returns the first visible row of a list of n rows, rows at a time,
+// so that the cursor stays in view.
+func follow(cursor, scroll, rows, n int) int {
+	rows = max(rows, 1)
+	if cursor < scroll {
+		scroll = cursor
+	}
+	if cursor >= scroll+rows {
+		scroll = cursor - rows + 1
+	}
+	return max(min(scroll, n-rows), 0)
 }
 
 // refresh recomputes the calendar and ranking for the current window and filter.

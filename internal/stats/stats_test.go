@@ -1,6 +1,7 @@
 package stats
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -138,6 +139,26 @@ func TestFileRank(t *testing.T) {
 	}
 	if limited := d.FileRank(at(2026, 1, 1, 0), at(2026, 12, 31, 0), AllAuthors, 1); len(limited) != 1 {
 		t.Errorf("limit ignored: %d", len(limited))
+	}
+}
+
+func TestFileCommits(t *testing.T) {
+	d := New([]gitlog.Commit{ // newest first
+		{Hash: "c3", Subject: "edit", Author: "A", Email: "a@x", Time: at(2026, 3, 3, 0), Files: []gitlog.FileChange{fc("new.go", 2, 1)}},
+		{Hash: "c2", Subject: "move", Author: "B", Email: "b@x", Time: at(2026, 3, 2, 0),
+			Files: []gitlog.FileChange{{Path: "new.go", OldPath: "old.go"}, fc("other.go", 1, 0)}},
+		{Hash: "c1", Subject: "start", Author: "A", Email: "a@x", Time: at(2026, 3, 1, 0), Files: []gitlog.FileChange{fc("old.go", 9, 0)}},
+	}, nil)
+	var got []string
+	for _, c := range d.FileCommits("new.go", at(2026, 1, 1, 0), at(2026, 12, 31, 0), AllAuthors) {
+		got = append(got, fmt.Sprintf("%s %s %d +%d -%d", c.Hash, c.Subject, c.Author, c.Added, c.Deleted))
+	}
+	// The history follows the rename back to the old path.
+	if want := []string{"c3 edit 0 +2 -1", "c2 move 1 +0 -0", "c1 start 0 +9 -0"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if n := len(d.FileCommits("new.go", at(2026, 3, 2, 0), at(2026, 3, 3, 0), 1)); n != 1 {
+		t.Errorf("date and author filter: %d commits, want 1", n)
 	}
 }
 

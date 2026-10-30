@@ -22,10 +22,12 @@ type Author struct {
 }
 
 type commit struct {
-	author int
-	day    time.Time // local midnight
-	time   time.Time
-	files  []gitlog.FileChange // paths resolved to the file's latest name
+	hash    string
+	subject string
+	author  int
+	day     time.Time // local midnight
+	time    time.Time
+	files   []gitlog.FileChange // paths resolved to the file's latest name
 }
 
 // Data holds the aggregated history of a repository.
@@ -90,7 +92,10 @@ func New(commits []gitlog.Commit, tracked []string) *Data {
 	d.identities = map[string]int{}
 	for i, c := range commits {
 		local := c.Time.Local()
-		d.commits[i] = commit{author: rank[ids[i]], day: midnight(local), time: local, files: files[i]}
+		d.commits[i] = commit{
+			hash: c.Hash, subject: c.Subject, author: rank[ids[i]],
+			day: midnight(local), time: local, files: files[i],
+		}
 		for _, k := range identityKeys(c.Author, c.Email) {
 			d.identities[k] = rank[ids[i]]
 		}
@@ -287,6 +292,38 @@ func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 	})
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
+	}
+	return out
+}
+
+// FileCommit is one commit touching a file.
+type FileCommit struct {
+	Hash    string
+	Subject string
+	Author  int
+	Time    time.Time
+	Added   int // -1 for binary changes
+	Deleted int
+}
+
+// FileCommits returns the commits touching the file at its latest path
+// between from and to (inclusive dates), newest first, counted like
+// FileRank.
+func (d *Data) FileCommits(path string, from, to time.Time, author int) []FileCommit {
+	from, to = midnight(from.Local()), midnight(to.Local())
+	var out []FileCommit
+	for _, c := range d.commits {
+		if author != AllAuthors && c.author != author || c.day.Before(from) || c.day.After(to) {
+			continue
+		}
+		for _, f := range c.files {
+			if f.Path == path {
+				out = append(out, FileCommit{
+					Hash: c.hash, Subject: c.subject, Author: c.author, Time: c.time,
+					Added: f.Added, Deleted: f.Deleted,
+				})
+			}
+		}
 	}
 	return out
 }

@@ -12,13 +12,13 @@ import (
 func TestParse(t *testing.T) {
 	// Shaped like `git log -M --numstat -z` output.
 	out := strings.Join([]string{
-		"\x1eaaa\x1fAlice\x1falice@example.com\x1f1700000000",
+		"\x1eaaa\x1fAlice\x1falice@example.com\x1f1700000000\x1fsubject",
 		"\n3\t1\tmain.go",
 		"-\t-\tlogo.png",
 		"2\t0\t", "old dir/a.go", "new dir/a.go",
 		"10\t0\tdocs/read me.md",
-		"\x1ebbb\x1fBob\x1fbob@example.com\x1f1700086400",
-		"\x1eccc\x1fAlice\x1falice@example.com\x1f1700172800",
+		"\x1ebbb\x1fBob\x1fbob@example.com\x1f1700086400\x1fsubject",
+		"\x1eccc\x1fAlice\x1falice@example.com\x1f1700172800\x1fsubject",
 		"\n1\t1\tmain.go",
 		"",
 	}, "\x00")
@@ -31,7 +31,7 @@ func TestParse(t *testing.T) {
 		t.Fatalf("got %d commits, want 3", len(commits))
 	}
 	c := commits[0]
-	if c.Hash != "aaa" || c.Author != "Alice" || c.Email != "alice@example.com" || c.Time.Unix() != 1700000000 {
+	if c.Hash != "aaa" || c.Subject != "subject" || c.Author != "Alice" || c.Email != "alice@example.com" || c.Time.Unix() != 1700000000 {
 		t.Errorf("unexpected header: %+v", c)
 	}
 	want := []FileChange{
@@ -57,9 +57,9 @@ func TestParseMalformed(t *testing.T) {
 	for _, in := range []string{
 		"1\t1\tfile.go\x00",
 		"\x1eaaa\x1fAlice\x00",
-		"\x1eaaa\x1fA\x1fa@x\x1fnot-a-time\x00",
-		"\x1eaaa\x1fA\x1fa@x\x1f1\x00\nbad entry\x00",
-		"\x1eaaa\x1fA\x1fa@x\x1f1\x00\n1\t0\t\x00old\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1fnot-a-time\x1fsubject\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1f1\x1fsubject\x00\nbad entry\x00",
+		"\x1eaaa\x1fA\x1fa@x\x1f1\x1fsubject\x00\n1\t0\t\x00old\x00",
 	} {
 		if _, err := Parse(strings.NewReader(in)); err == nil {
 			t.Errorf("Parse(%q) succeeded, want error", in)
@@ -128,8 +128,11 @@ func TestReadRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f := commits[0].Files; len(f) != 1 || f[0] != (FileChange{Path: "docs/b.txt", OldPath: "a.txt"}) {
-		t.Errorf("rename not detected: %+v", f)
+	if f := commits[0].Files; len(f) != 1 || f[0] != (FileChange{Path: "docs/b.txt", OldPath: "a.txt"}) || commits[0].Subject != "move" {
+		t.Errorf("rename not detected: %+v", commits[0])
+	}
+	if f, err := CommitFiles(dir, commits[0].Hash); err != nil || len(f) != 1 || f[0] != (FileChange{Path: "docs/b.txt", OldPath: "a.txt"}) {
+		t.Errorf("CommitFiles = %+v, %v", f, err)
 	}
 	tracked, err := Tracked(dir)
 	if err != nil || len(tracked) != 1 || tracked[0] != "docs/b.txt" {
@@ -178,6 +181,19 @@ func TestReadRepository(t *testing.T) {
 	}
 	if _, err := TopLevel(t.TempDir()); err == nil {
 		t.Error("TopLevel outside a repository succeeded")
+	}
+
+	// A merge lists the files it brings in from its second parent.
+	run("checkout", "-q", "side")
+	if err := os.WriteFile(filepath.Join(dir, "c.txt"), []byte("c\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "c.txt")
+	run("commit", "-q", "-m", "add c")
+	run("checkout", "-q", "main")
+	run("merge", "-q", "--no-edit", "side")
+	if f, err := CommitFiles(dir, "HEAD"); err != nil || len(f) != 1 || f[0] != (FileChange{Path: "c.txt", Added: 1}) {
+		t.Errorf("merge CommitFiles = %+v, %v", f, err)
 	}
 }
 

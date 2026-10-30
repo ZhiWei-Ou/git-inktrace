@@ -25,12 +25,14 @@ func (m Model) View() string {
 	var b strings.Builder
 	b.WriteString(m.header() + "\n")
 	b.WriteString(m.tabs() + "\n\n")
-	switch m.view {
-	case HeatmapView:
+	switch {
+	case m.inspect.open:
+		b.WriteString(m.inspectView())
+	case m.view == HeatmapView:
 		b.WriteString(m.heatmap())
-	case FilesView:
+	case m.view == FilesView:
 		b.WriteString(m.fileTable())
-	case GraphView:
+	case m.view == GraphView:
 		b.WriteString(m.graphView())
 	}
 	b.WriteString("\n" + m.help())
@@ -83,11 +85,15 @@ func (m Model) tabs() string {
 
 func (m Model) help() string {
 	keys := "←→ year · t latest · a/A author · tab files · q quit"
-	switch m.view {
-	case FilesView:
-		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
-	case GraphView:
-		keys = "↑↓ select · enter copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
+	switch {
+	case m.inspect.open && m.inspect.commit == nil:
+		keys = "↑↓ select · enter copy hash · pgup/pgdn page · esc/i back · q quit"
+	case m.inspect.open:
+		keys = "↑↓ select · pgup/pgdn page · esc/i back · q quit"
+	case m.view == FilesView:
+		keys = "↑↓ select · i inspect · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
+	case m.view == GraphView:
+		keys = "↑↓ select · i inspect · enter copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
 	}
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }
@@ -320,15 +326,19 @@ func (m Model) fileTable() string {
 			added, deleted = "bin", ""
 		}
 		author := color.Render(cellGlyph) + " " + ansi.Truncate(m.data.Authors[f.TopAuthor].Name, authorWidth-2, "…")
-		b.WriteString(row(
+		line := row(
 			t.dim.Render(fmt.Sprint(i+1)),
 			t.text.Bold(true).Render(fmt.Sprint(f.Commits)),
 			bar,
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#3fb950")).Render(added),
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#f85149")).Render(deleted),
+			addedStyle.Render(added),
+			deletedStyle.Render(deleted),
 			author,
 			m.filePath(f, pathWidth),
-		) + "\n")
+		)
+		if i == m.cursor {
+			line = underline(line)
+		}
+		b.WriteString(line + "\n")
 	}
 	if len(m.files) > m.fileRows() {
 		b.WriteString(" " + t.dim.Render(fmt.Sprintf("%d–%d of %d", m.scroll+1, end, len(m.files))) + "\n")

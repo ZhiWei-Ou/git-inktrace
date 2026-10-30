@@ -46,18 +46,22 @@ type copiedMsg struct {
 	err  error
 }
 
-func copyCommit(c *gitlog.GraphCommit) tea.Cmd {
+func copyHash(hash string) tea.Cmd {
 	return func() tea.Msg {
-		return copiedMsg{hash: c.FullHash, err: copyToClipboard(c.FullHash)}
+		return copiedMsg{hash: hash, err: copyToClipboard(hash)}
 	}
 }
 
 func (m *Model) receiveCopied(msg copiedMsg) {
+	status := &m.graph.status
+	if m.inspect.open {
+		status = &m.inspect.status
+	}
 	if msg.err != nil {
-		m.graph.status = "Copy failed: " + msg.err.Error()
+		*status = "Copy failed: " + msg.err.Error()
 		return
 	}
-	m.graph.status = "Copied " + msg.hash
+	*status = "Copied " + msg.hash
 }
 
 type graphMsg struct {
@@ -159,7 +163,7 @@ func (m *Model) graphKey(key string) tea.Cmd {
 		g.cursor = g.nextCommit(len(g.lines)-1, -1)
 	case "enter":
 		if g.isCommit(g.cursor) {
-			return copyCommit(g.lines[g.cursor].Commit)
+			return copyHash(g.lines[g.cursor].Commit.FullHash)
 		}
 		return nil
 	case "a":
@@ -180,14 +184,7 @@ func (m *Model) graphKey(key string) tea.Cmd {
 // clampGraph scrolls so the cursor stays visible.
 func (m *Model) clampGraph() {
 	g := &m.graph
-	rows := max(m.graphRows(), 1)
-	if g.cursor < g.scroll {
-		g.scroll = g.cursor
-	}
-	if g.cursor >= g.scroll+rows {
-		g.scroll = g.cursor - rows + 1
-	}
-	g.scroll = max(min(g.scroll, len(g.lines)-rows), 0)
+	g.scroll = follow(g.cursor, g.scroll, m.graphRows(), len(g.lines))
 }
 
 func (m Model) graphRows() int {

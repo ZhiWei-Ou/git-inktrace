@@ -23,17 +23,21 @@ type FileChange struct {
 
 // Commit is a non-merge commit with its file changes.
 type Commit struct {
-	Hash   string
-	Author string
-	Email  string
-	Time   time.Time
-	Files  []FileChange
+	Hash    string
+	Subject string
+	Author  string
+	Email   string
+	Time    time.Time
+	Files   []FileChange
 }
 
 const (
 	recordSep = "\x1e"
 	fieldSep  = "\x1f"
 )
+
+// commitFormat is the header Parse expects before each commit's numstat.
+var commitFormat = "--format=" + recordSep + strings.Join([]string{"%H", "%aN", "%aE", "%at", "%s"}, fieldSep)
 
 // TopLevel returns the root directory of the work tree containing dir.
 func TopLevel(dir string) (string, error) {
@@ -69,8 +73,7 @@ type Options struct {
 // A repository without commits yields an empty slice.
 func Read(dir string, opts Options) ([]Commit, error) {
 	args := []string{
-		"log", "--no-merges", "-M", "--numstat", "-z",
-		"--format=" + recordSep + "%H" + fieldSep + "%aN" + fieldSep + "%aE" + fieldSep + "%at",
+		"log", "--no-merges", "-M", "--numstat", "-z", commitFormat,
 	}
 	if opts.All {
 		args = append(args, allRefs...)
@@ -98,6 +101,20 @@ func Read(dir string, opts Options) ([]Commit, error) {
 		return nil, fmt.Errorf("git log: %s", msg)
 	}
 	return commits, parseErr
+}
+
+// CommitFiles returns the files changed by one commit, with renames
+// detected. A merge is compared with its first parent.
+func CommitFiles(dir, hash string) ([]FileChange, error) {
+	out, err := git(dir, "show", "--diff-merges=first-parent", "-M", "--numstat", "-z", commitFormat, hash, "--")
+	if err != nil {
+		return nil, err
+	}
+	commits, err := Parse(bytes.NewReader(out))
+	if err != nil || len(commits) == 0 {
+		return nil, err
+	}
+	return commits[0].Files, nil
 }
 
 // Tracked returns the paths of the files in the HEAD tree.
@@ -173,14 +190,14 @@ func splitNUL(data []byte, atEOF bool) (int, []byte, error) {
 
 func parseHeader(s string) (Commit, error) {
 	f := strings.Split(s, fieldSep)
-	if len(f) != 4 {
+	if len(f) != 5 {
 		return Commit{}, fmt.Errorf("malformed commit header: %q", s)
 	}
 	ts, err := strconv.ParseInt(f[3], 10, 64)
 	if err != nil {
 		return Commit{}, fmt.Errorf("malformed commit time %q: %w", f[3], err)
 	}
-	return Commit{Hash: f[0], Author: f[1], Email: f[2], Time: time.Unix(ts, 0)}, nil
+	return Commit{Hash: f[0], Author: f[1], Email: f[2], Time: time.Unix(ts, 0), Subject: f[4]}, nil
 }
 
 // parseNumstat decodes "added\tdeleted\tpath"; path is empty for a rename.
