@@ -30,9 +30,10 @@ type commit struct {
 
 // Data holds the aggregated history of a repository.
 type Data struct {
-	Authors []Author // sorted by commits, descending
-	commits []commit // newest first
-	tracked map[string]bool
+	Authors    []Author // sorted by commits, descending
+	commits    []commit // newest first
+	tracked    map[string]bool
+	identities map[string]int // identity key -> author index
 }
 
 // New indexes commits by author. Commits sharing an email (case-insensitive)
@@ -86,11 +87,26 @@ func New(commits []gitlog.Commit, tracked []string) *Data {
 			d.tracked[p] = true
 		}
 	}
+	d.identities = map[string]int{}
 	for i, c := range commits {
 		local := c.Time.Local()
 		d.commits[i] = commit{author: rank[ids[i]], day: midnight(local), time: local, files: files[i]}
+		for _, k := range identityKeys(c.Author, c.Email) {
+			d.identities[k] = rank[ids[i]]
+		}
 	}
 	return d
+}
+
+// AuthorOf returns the index of the author committing as name and email,
+// or -1 when no counted commit used that identity.
+func (d *Data) AuthorOf(name, email string) int {
+	for _, k := range identityKeys(name, email) {
+		if id, ok := d.identities[k]; ok {
+			return id
+		}
+	}
+	return -1
 }
 
 // Len returns the number of commits.
@@ -297,6 +313,22 @@ func resolveRenames(commits []gitlog.Commit) [][]gitlog.FileChange {
 	return out
 }
 
+// identityKeys returns the keys that tie commits to one author: the
+// lower-cased email and the name.
+func identityKeys(name, email string) []string {
+	var ks []string
+	if email != "" {
+		ks = append(ks, "e:"+strings.ToLower(email))
+	}
+	if name != "" {
+		ks = append(ks, "n:"+name)
+	}
+	if len(ks) == 0 {
+		ks = append(ks, "unknown")
+	}
+	return ks
+}
+
 // groupIdentities assigns each commit a group id, joining commits that
 // share a lower-cased email or a name.
 func groupIdentities(commits []gitlog.Commit) []int {
@@ -314,16 +346,7 @@ func groupIdentities(commits []gitlog.Commit) []int {
 	}
 	keys := make([]string, len(commits))
 	for i, c := range commits {
-		var ks []string
-		if c.Email != "" {
-			ks = append(ks, "e:"+strings.ToLower(c.Email))
-		}
-		if c.Author != "" {
-			ks = append(ks, "n:"+c.Author)
-		}
-		if len(ks) == 0 {
-			ks = append(ks, "unknown")
-		}
+		ks := identityKeys(c.Author, c.Email)
 		root := find(ks[0])
 		for _, k := range ks[1:] {
 			if r := find(k); r != root {

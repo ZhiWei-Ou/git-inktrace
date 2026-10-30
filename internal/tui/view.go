@@ -25,10 +25,13 @@ func (m Model) View() string {
 	var b strings.Builder
 	b.WriteString(m.header() + "\n")
 	b.WriteString(m.tabs() + "\n\n")
-	if m.view == heatmapView {
+	switch m.view {
+	case heatmapView:
 		b.WriteString(m.heatmap())
-	} else {
+	case filesView:
 		b.WriteString(m.fileTable())
+	case graphView:
+		b.WriteString(m.graphView())
 	}
 	b.WriteString("\n" + m.help())
 	return b.String()
@@ -39,6 +42,9 @@ func (m Model) header() string {
 	left := " " + t.title.Render("git-inktrace") + "  " + t.text.Render(m.opts.Repo)
 	if m.opts.Branch != "" {
 		left += t.dim.Render(" · " + m.opts.Branch)
+	}
+	if m.view == graphView {
+		return spread(left, t.dim.Render(m.graphScope())+" ", m.width)
 	}
 	// Arrows show which way more history lies.
 	back, fwd := "  ", "  "
@@ -56,7 +62,7 @@ func (m Model) header() string {
 func (m Model) tabs() string {
 	t := m.theme
 	var parts []string
-	for i, name := range []string{"Heatmap", "Files"} {
+	for i, name := range []string{"Heatmap", "Files", "Graph"} {
 		if view(i) == m.view {
 			parts = append(parts, t.activeTab.Render(name))
 		} else {
@@ -69,13 +75,19 @@ func (m Model) tabs() string {
 			Render(cellGlyph + " " + m.data.Authors[m.author].Name)
 	}
 	right := t.dim.Render(fmt.Sprintf("%d commits · ", m.cal.Total)) + who + " "
+	if m.view == graphView {
+		right = who + " "
+	}
 	return spread(" "+strings.Join(parts, " "), right, m.width)
 }
 
 func (m Model) help() string {
 	keys := "←→ year · t latest · a/A author · tab files · q quit"
-	if m.view == filesView {
-		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab heatmap · q quit"
+	switch m.view {
+	case filesView:
+		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
+	case graphView:
+		keys = "↑↓ scroll · pgup/pgdn page · g/G top/bottom · b HEAD/all branches · a/A author · tab heatmap · q quit"
 	}
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }

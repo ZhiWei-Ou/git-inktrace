@@ -1,6 +1,7 @@
 package gitlog
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -135,10 +136,65 @@ func TestReadRepository(t *testing.T) {
 		t.Errorf("Tracked = %v, %v", tracked, err)
 	}
 
+	run("checkout", "-q", "-b", "side")
+	run("commit", "-q", "--allow-empty", "-m", "side work")
+	run("checkout", "-q", "main")
+	head, err := Graph(dir, false, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	every, err := Graph(dir, true, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(head) != 2 || len(every) != 3 || every[0].Commit.Subject != "side work" || fmt.Sprint(head[0].Commit.Refs) != fmt.Sprint([]Ref{{"HEAD -> main", RefHead}}) {
+		t.Errorf("graph: head %+v, all %+v", head, every)
+	}
+	if limited, _ := Graph(dir, true, 1); len(limited) != 1 {
+		t.Errorf("limit ignored: %d lines", len(limited))
+	}
+
 	if b := Branch(dir); b != "main" {
 		t.Errorf("Branch = %q, want main", b)
 	}
 	if _, err := TopLevel(t.TempDir()); err == nil {
 		t.Error("TopLevel outside a repository succeeded")
+	}
+}
+
+func TestParseGraph(t *testing.T) {
+	out := "*   \x1ea1b2c3d\x1fHEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1.0, refs/heads/feat/x\x1fMerge branch 'feat'\x1fBob\x1fbob@x\x1f1700000000\n" +
+		"|\\  \n" +
+		"| * \x1e9f8e7d6\x1fHEAD, refs/stash\x1fAdd parser\x1fBob\x1fbob@x\x1f1699990000\n" +
+		"|/  \n" +
+		"* \x1e68b0c4d\x1f\x1fFix\x1fAlice\x1falice@x\x1f1699980000\n"
+	lines, err := ParseGraph(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) != 5 {
+		t.Fatalf("got %d lines", len(lines))
+	}
+	if l := lines[0]; l.Graph != "*" || l.Commit == nil || l.Commit.Author != "Bob" {
+		t.Errorf("line 0 = %q %+v", l.Graph, l.Commit)
+	}
+	wantRefs := []Ref{{"HEAD -> main", RefHead}, {"origin/main", RefRemote}, {"v1.0", RefTag}, {"feat/x", RefBranch}}
+	if got := lines[0].Commit.Refs; fmt.Sprint(got) != fmt.Sprint(wantRefs) {
+		t.Errorf("refs = %v, want %v", got, wantRefs)
+	}
+	if got := lines[2].Commit.Refs; fmt.Sprint(got) != fmt.Sprint([]Ref{{"HEAD", RefHead}, {"stash", RefOther}}) {
+		t.Errorf("detached refs = %v", got)
+	}
+	if l := lines[1]; l.Graph != "|\\" || l.Commit != nil {
+		t.Errorf("line 1 = %q %+v", l.Graph, l.Commit)
+	}
+	if l := lines[2]; l.Graph != "| *" || l.Commit.Subject != "Add parser" {
+		t.Errorf("line 2 = %q %+v", l.Graph, l.Commit)
+	}
+	if l := lines[4]; l.Commit.Refs != nil || l.Commit.Time.Unix() != 1699980000 {
+		t.Errorf("line 4 = %+v", l.Commit)
+	}
+	if _, err := ParseGraph("* \x1ebad\n"); err == nil {
+		t.Error("malformed line accepted")
 	}
 }

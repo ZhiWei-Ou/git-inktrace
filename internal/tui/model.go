@@ -1,4 +1,4 @@
-// Package tui renders the interactive heatmap and file ranking.
+// Package tui renders the interactive heatmap, file ranking and branch graph.
 package tui
 
 import (
@@ -15,6 +15,8 @@ type view int
 const (
 	heatmapView view = iota
 	filesView
+	graphView
+	viewCount
 )
 
 const maxWeeks = 53
@@ -23,7 +25,9 @@ const maxWeeks = 53
 type Options struct {
 	Repo   string // repository name shown in the title
 	Branch string
-	Top    int // number of files in the ranking
+	Top    int    // number of files in the ranking
+	Dir    string // repository root, read by the graph view
+	All    bool   // graph every branch initially, not only HEAD
 }
 
 // Model is the bubbletea model.
@@ -43,6 +47,8 @@ type Model struct {
 	monthShares, windowShares []int
 	files                     []stats.FileStat
 	scroll                    int // first visible row of the file ranking
+
+	graph graphState
 }
 
 // New creates a model showing the year up to today, or up to the latest
@@ -56,6 +62,7 @@ func New(data *stats.Data, opts Options) Model {
 		height: 24,
 		author: stats.AllAuthors,
 		end:    defaultEnd(data),
+		graph:  graphState{all: opts.All, limit: graphPage},
 	}
 	// Render a valid first frame before the terminal size arrives.
 	m.refresh()
@@ -91,36 +98,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refresh()
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case graphMsg:
+		return m, m.receiveGraph(msg)
 	}
 	return m, nil
+}
+
+func (m *Model) setView(v view) tea.Cmd {
+	m.view = v
+	if v == graphView {
+		return m.loadGraph()
+	}
+	return nil
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
-	case "tab", "shift+tab":
-		m.view = 1 - m.view
-		return m, nil
+	case "tab":
+		return m, m.setView((m.view + 1) % viewCount)
+	case "shift+tab":
+		return m, m.setView((m.view + viewCount - 1) % viewCount)
 	case "1":
-		m.view = heatmapView
-		return m, nil
+		return m, m.setView(heatmapView)
 	case "2":
-		m.view = filesView
-		return m, nil
+		return m, m.setView(filesView)
+	case "3":
+		return m, m.setView(graphView)
 	case "a":
 		m.cycleAuthor(1)
 	case "A":
 		m.cycleAuthor(-1)
-	case "left", "h":
-		m.shiftYears(-1)
-	case "right", "l":
-		m.shiftYears(1)
-	case "t":
-		m.end = defaultEnd(m.data)
+	case "left", "h", "right", "l", "t":
+		if m.view == graphView {
+			return m, nil // the graph has no time window
+		}
+		switch msg.String() {
+		case "left", "h":
+			m.shiftYears(-1)
+		case "right", "l":
+			m.shiftYears(1)
+		default:
+			m.end = defaultEnd(m.data)
+		}
 	default:
-		if m.view == filesView {
+		switch m.view {
+		case filesView:
 			m.scrollFiles(msg.String())
+		case graphView:
+			return m, m.graphKey(msg.String())
 		}
 		return m, nil
 	}

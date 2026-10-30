@@ -63,5 +63,7 @@ func run() error {
 		Repo:   filepath.Base(root),
 		Branch: gitlog.Branch(root),
 		Top:    *top,
+		Dir:    root,
+		All:    *all,
 	})
 }

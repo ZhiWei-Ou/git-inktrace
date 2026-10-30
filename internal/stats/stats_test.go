@@ -68,6 +68,9 @@ func TestAuthorIdentities(t *testing.T) {
 	if a := d.Authors[1]; a.Name != "Carol" || a.Commits != 1 {
 		t.Errorf("second author = %+v", a)
 	}
+	if d.AuthorOf("R. Smith", "") != 0 || d.AuthorOf("", "Carol@Example.com") != 1 || d.AuthorOf("Zed", "z@x") != -1 {
+		t.Error("AuthorOf lookups wrong")
+	}
 }
 
 func TestCalendar(t *testing.T) {

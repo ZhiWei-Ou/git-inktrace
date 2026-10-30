@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -213,5 +214,81 @@ func TestFilesViewMarksDeleted(t *testing.T) {
 	out := press(next.(Model), "tab").View()
 	if !strings.Contains(out, "removed.go") || strings.Count(out, "(deleted)") != 1 {
 		t.Errorf("want only removed.go tagged as deleted:\n%s", out)
+	}
+}
+
+func TestGraphView(t *testing.T) {
+	now := time.Now()
+	commits := []gitlog.Commit{
+		{Author: "Alice", Email: "alice@example.com", Time: now},
+		{Author: "Bob", Email: "bob@example.com", Time: now},
+	}
+	m := New(stats.New(commits, nil), Options{})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 12})
+	m = next.(Model)
+
+	m = press(m, "3")
+	if m.view != graphView || !m.graph.loading {
+		t.Fatalf("graph not loading: view %d, %+v", m.view, m.graph)
+	}
+	if !strings.Contains(m.View(), "Loading graph") {
+		t.Error("missing loading state")
+	}
+
+	var lines []gitlog.GraphLine
+	for i := 0; i < 20; i++ {
+		lines = append(lines, gitlog.GraphLine{Graph: "*", Commit: &gitlog.GraphCommit{
+			Hash: fmt.Sprintf("%07d", i), Subject: fmt.Sprintf("change %d", i),
+			Author: "Bob", Email: "bob@example.com", Time: now,
+			Refs: []gitlog.Ref{{Name: "HEAD -> main", Kind: gitlog.RefHead}},
+		}}, gitlog.GraphLine{Graph: "|"})
+	}
+	// Fewer commits than requested means the whole history is loaded.
+	next, cmd := m.Update(graphMsg{all: false, limit: graphPage, lines: lines})
+	m = next.(Model)
+	if cmd != nil || !m.graph.done {
+		t.Fatalf("20 of %d commits: cmd %v, done %v", graphPage, cmd != nil, m.graph.done)
+	}
+	out := m.View()
+	for _, want := range []string{"change 0", "HEAD -> main", "Bob", "0000000"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("graph missing %q:\n%s", want, out)
+		}
+	}
+
+	m = press(m, "G")
+	if m.graph.scroll != len(lines)-m.graphRows() {
+		t.Errorf("G scrolled to %d", m.graph.scroll)
+	}
+
+	// Switching scope reloads from scratch, and stale results are dropped.
+	m = press(m, "b")
+	if !m.graph.all || !m.graph.loading || len(m.graph.lines) != 0 {
+		t.Errorf("b did not reload: %+v", m.graph)
+	}
+	next, _ = m.Update(graphMsg{all: false, limit: graphPage, lines: lines})
+	if next.(Model).graph.loaded {
+		t.Error("stale graph result accepted")
+	}
+
+	// The time window keys do nothing here.
+	end := m.end
+	if m = press(m, "left"); !m.end.Equal(end) {
+		t.Error("left moved the heatmap window from the graph view")
+	}
+}
+
+func TestGraphLoadsMoreNearEnd(t *testing.T) {
+	m := New(stats.New([]gitlog.Commit{{Author: "A", Email: "a@x", Time: time.Now()}}, nil), Options{})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = press(next.(Model), "3")
+	lines := make([]gitlog.GraphLine, graphPage)
+	for i := range lines {
+		lines[i] = gitlog.GraphLine{Graph: "*", Commit: &gitlog.GraphCommit{Hash: "h", Author: "A", Email: "a@x"}}
+	}
+	next, _ = m.Update(graphMsg{limit: graphPage, lines: lines})
+	m = press(next.(Model), "G")
+	if !m.graph.loading || m.graph.limit != 2*graphPage {
+		t.Errorf("no further page requested: %+v", m.graph.limit)
 	}
 }
