@@ -10,12 +10,13 @@ import (
 	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
 )
 
-type view int
+// View is a page of the TUI.
+type View int
 
 const (
-	heatmapView view = iota
-	filesView
-	graphView
+	HeatmapView View = iota
+	FilesView
+	GraphView
 	viewCount
 )
 
@@ -27,6 +28,7 @@ type Options struct {
 	Branch string
 	Top    int    // number of files in the ranking
 	Dir    string // repository root, read by the graph view
+	View   View   // page shown first
 }
 
 // Model is the bubbletea model.
@@ -36,7 +38,7 @@ type Model struct {
 	theme theme
 
 	width, height int
-	view          view
+	view          View
 	author        int       // stats.AllAuthors or an author index
 	end           time.Time // last day of the calendar
 
@@ -59,12 +61,16 @@ func New(data *stats.Data, opts Options) Model {
 		theme:  newTheme(lipgloss.HasDarkBackground()),
 		width:  80,
 		height: 24,
+		view:   opts.View,
 		author: stats.AllAuthors,
 		end:    defaultEnd(data),
 		graph:  graphState{all: true, limit: graphPage},
 	}
 	// Render a valid first frame before the terminal size arrives.
 	m.refresh()
+	if m.view == GraphView {
+		m.graph.loading = true // Init fetches the first page
+	}
 	return m
 }
 
@@ -88,7 +94,12 @@ func Run(data *stats.Data, opts Options) error {
 	return err
 }
 
-func (m Model) Init() tea.Cmd { return nil }
+func (m Model) Init() tea.Cmd {
+	if m.graph.loading {
+		return m.fetchGraph()
+	}
+	return nil
+}
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -105,9 +116,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) setView(v view) tea.Cmd {
+func (m *Model) setView(v View) tea.Cmd {
 	m.view = v
-	if v == graphView {
+	if v == GraphView {
 		return m.loadGraph()
 	}
 	return nil
@@ -133,13 +144,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "shift+tab":
 		return m, m.setView((m.view + viewCount - 1) % viewCount)
 	case "1":
-		return m, m.setView(heatmapView)
+		return m, m.setView(HeatmapView)
 	case "2":
-		return m, m.setView(filesView)
+		return m, m.setView(FilesView)
 	case "3":
-		return m, m.setView(graphView)
+		return m, m.setView(GraphView)
 	case "a", "A":
-		if m.view == graphView {
+		if m.view == GraphView {
 			return m, m.graphKey(msg.String()) // a switches the graph's branches
 		}
 		if msg.String() == "a" {
@@ -148,7 +159,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cycleAuthor(-1)
 		}
 	case "left", "h", "right", "l", "t":
-		if m.view == graphView {
+		if m.view == GraphView {
 			return m, nil // the graph has no time window
 		}
 		switch msg.String() {
@@ -161,9 +172,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	default:
 		switch m.view {
-		case filesView:
+		case FilesView:
 			m.scrollFiles(msg.String())
-		case graphView:
+		case GraphView:
 			return m, m.graphKey(msg.String())
 		}
 		return m, nil

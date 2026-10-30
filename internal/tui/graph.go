@@ -69,7 +69,12 @@ func (m *Model) loadGraph() tea.Cmd {
 		return nil
 	}
 	g.loading = true
-	dir, all, limit := m.opts.Dir, g.all, g.limit
+	return m.fetchGraph()
+}
+
+// fetchGraph reads the graph for the current scope and limit.
+func (m Model) fetchGraph() tea.Cmd {
+	dir, all, limit := m.opts.Dir, m.graph.all, m.graph.limit
 	return func() tea.Msg {
 		lines, err := gitlog.Graph(dir, all, limit)
 		return graphMsg{all: all, limit: limit, lines: lines, err: err}
@@ -187,7 +192,7 @@ func (m Model) graphScope() string {
 	return "current branch"
 }
 
-func (m Model) graphView() string {
+func (m Model) GraphView() string {
 	t := m.theme
 	g := m.graph
 	if g.err != nil {

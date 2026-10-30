@@ -114,7 +114,7 @@ func TestAuthorFilter(t *testing.T) {
 
 func TestFilesView(t *testing.T) {
 	m := press(testModel(t, 100), "tab")
-	if m.view != filesView || len(m.files) != 5 {
+	if m.view != FilesView || len(m.files) != 5 {
 		t.Fatalf("view %d, %d files", m.view, len(m.files))
 	}
 	out := m.View()
@@ -232,7 +232,7 @@ func TestGraphView(t *testing.T) {
 	m = next.(Model)
 
 	m = press(m, "3")
-	if m.view != graphView || !m.graph.loading {
+	if m.view != GraphView || !m.graph.loading {
 		t.Fatalf("graph not loading: view %d, %+v", m.view, m.graph)
 	}
 	if !strings.Contains(m.View(), "Loading graph") {
@@ -341,5 +341,23 @@ func TestGraphLoadsMoreNearEnd(t *testing.T) {
 	m = press(next.(Model), "G")
 	if !m.graph.loading || m.graph.limit != 2*graphPage {
 		t.Errorf("no further page requested: %+v", m.graph.limit)
+	}
+}
+
+func TestStartView(t *testing.T) {
+	data := stats.New([]gitlog.Commit{{Author: "Alice", Email: "a@x", Time: time.Now()}}, nil)
+	if m := New(data, Options{}); m.view != HeatmapView || m.Init() != nil {
+		t.Errorf("default start: view %d", m.view)
+	}
+	if m := New(data, Options{View: FilesView}); m.view != FilesView || m.Init() != nil {
+		t.Errorf("files start: view %d", m.view)
+	}
+	// Starting on the graph loads its first page once.
+	m := New(data, Options{View: GraphView})
+	if m.view != GraphView || m.Init() == nil {
+		t.Fatalf("graph start: view %d, no load", m.view)
+	}
+	if m = press(m, "3"); !m.graph.loading || m.setView(GraphView) != nil {
+		t.Error("graph start loaded twice")
 	}
 }

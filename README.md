@@ -80,6 +80,9 @@ git-inktrace [flags]
   -C path     run as if started in path (default ".")
   -all        include every branch, remote branch and tag, not only HEAD (stashes excluded)
   -top int    number of files in the ranking, 0 for all (default 100)
+  -heatmap    open on the heatmap (default)
+  -files      open on the file ranking
+  -graph      open on the branch graph
   -version    print version and exit
 ```
 
@@ -89,6 +92,7 @@ Examples:
 git inktrace -C ~/src/project     # inspect another repository
 git inktrace -all                 # count commits on every branch and tag, skipping stashes
 git inktrace -top 0               # rank every changed file
+git inktrace -graph               # open straight on the branch graph
 ```
 
 Authors are merged the way `git shortlog` groups them, plus by email: commits that share an email (case-insensitive) or a name belong to one author. To join identities that share neither, add a [`.mailmap`](https://git-scm.com/docs/gitmailmap) file to the repository, for example:
