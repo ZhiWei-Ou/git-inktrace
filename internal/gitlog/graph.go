@@ -32,12 +32,13 @@ type Ref struct {
 
 // GraphCommit is a commit shown in the graph.
 type GraphCommit struct {
-	Hash    string // abbreviated
-	Refs    []Ref
-	Subject string
-	Author  string
-	Email   string
-	Time    time.Time
+	Hash     string // abbreviated
+	FullHash string
+	Refs     []Ref
+	Subject  string
+	Author   string
+	Email    string
+	Time     time.Time
 }
 
 // Graph returns the commit graph drawn by git, newest first, covering at most
@@ -47,7 +48,7 @@ type GraphCommit struct {
 func Graph(dir string, all bool, limit int) ([]GraphLine, error) {
 	args := []string{
 		"log", "--graph", "--color=always", "--decorate=full", "--max-count=" + strconv.Itoa(limit),
-		"--format=" + recordSep + strings.Join([]string{"%h", "%D", "%s", "%aN", "%aE", "%at"}, fieldSep),
+		"--format=" + recordSep + strings.Join([]string{"%h", "%H", "%D", "%s", "%aN", "%aE", "%at"}, fieldSep),
 	}
 	if all {
 		args = append(args, allRefs...)
@@ -70,14 +71,17 @@ func ParseGraph(out string) ([]GraphLine, error) {
 		gl := GraphLine{Graph: strings.TrimRight(prefix, " ")}
 		if isCommit {
 			f := strings.Split(rest, fieldSep)
-			if len(f) != 6 {
+			if len(f) != 7 {
 				return nil, fmt.Errorf("malformed graph line: %q", line)
 			}
-			ts, err := strconv.ParseInt(f[5], 10, 64)
+			ts, err := strconv.ParseInt(f[6], 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("malformed commit time %q: %w", f[5], err)
+				return nil, fmt.Errorf("malformed commit time %q: %w", f[6], err)
 			}
-			gl.Commit = &GraphCommit{Hash: f[0], Refs: parseRefs(f[1]), Subject: f[2], Author: f[3], Email: f[4], Time: time.Unix(ts, 0)}
+			gl.Commit = &GraphCommit{
+				Hash: f[0], FullHash: f[1], Refs: parseRefs(f[2]), Subject: f[3],
+				Author: f[4], Email: f[5], Time: time.Unix(ts, 0),
+			}
 		}
 		lines = append(lines, gl)
 	}

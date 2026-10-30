@@ -100,6 +100,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 	case graphMsg:
 		return m, m.receiveGraph(msg)
+	case copiedMsg:
+		m.receiveCopied(msg)
 	}
 	return m, nil
 }
@@ -113,6 +115,17 @@ func (m *Model) setView(v view) tea.Cmd {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Fast typing or key repeat can deliver several runes in one message.
+	if msg.Type == tea.KeyRunes && len(msg.Runes) > 1 && !msg.Paste {
+		var cmds []tea.Cmd
+		var model tea.Model = m
+		for _, r := range msg.Runes {
+			var cmd tea.Cmd
+			model, cmd = model.(Model).handleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}, Alt: msg.Alt})
+			cmds = append(cmds, cmd)
+		}
+		return model, tea.Batch(cmds...)
+	}
 	switch msg.String() {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit

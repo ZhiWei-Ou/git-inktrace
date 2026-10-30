@@ -1,11 +1,13 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
@@ -238,7 +240,7 @@ func TestGraphView(t *testing.T) {
 	var lines []gitlog.GraphLine
 	for i := 0; i < 20; i++ {
 		lines = append(lines, gitlog.GraphLine{Graph: "*", Commit: &gitlog.GraphCommit{
-			Hash: fmt.Sprintf("%07d", i), Subject: fmt.Sprintf("change %d", i),
+			Hash: fmt.Sprintf("%07d", i), FullHash: fmt.Sprintf("full-%07d", i), Subject: fmt.Sprintf("change %d", i),
 			Author: "Bob", Email: "bob@example.com", Time: now,
 			Refs: []gitlog.Ref{{Name: "HEAD -> main", Kind: gitlog.RefHead}},
 		}}, gitlog.GraphLine{Graph: "|"})
@@ -256,9 +258,49 @@ func TestGraphView(t *testing.T) {
 		}
 	}
 
+	// The cursor walks commit lines only and the view follows it.
+	if m.graph.cursor != 0 {
+		t.Errorf("initial cursor %d", m.graph.cursor)
+	}
+	m = press(m, "j")
+	if m.graph.cursor != 2 {
+		t.Errorf("j moved to line %d, want the next commit at 2", m.graph.cursor)
+	}
+	// Runes batched into one message by fast typing count one by one.
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("jj")})
+	if m = next.(Model); m.graph.cursor != 6 {
+		t.Errorf("batched jj moved to %d, want 6", m.graph.cursor)
+	}
+	m = press(m, "k", "k", "k", "k")
+	if m.graph.cursor != 0 {
+		t.Errorf("k past the top: %d", m.graph.cursor)
+	}
 	m = press(m, "G")
-	if m.graph.scroll != len(lines)-m.graphRows() {
-		t.Errorf("G scrolled to %d", m.graph.scroll)
+	if last := len(lines) - 2; m.graph.cursor != last || m.graph.scroll+m.graphRows() <= last {
+		t.Errorf("G: cursor %d, scroll %d", m.graph.cursor, m.graph.scroll)
+	}
+	if !strings.Contains(m.View(), "▌") {
+		t.Error("selected line not marked")
+	}
+
+	// Enter copies the selected commit's full hash.
+	var copied string
+	copyToClipboard = func(s string) error { copied = s; return nil }
+	defer func() { copyToClipboard = clipboard.WriteAll }()
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter produced no command")
+	}
+	next, _ = m.Update(cmd())
+	m = next.(Model)
+	if copied != "full-0000019" || !strings.Contains(m.View(), "Copied full-0000019") {
+		t.Errorf("copied %q", copied)
+	}
+	copyToClipboard = func(string) error { return errors.New("no clipboard utility") }
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	next, _ = m.Update(cmd())
+	if !strings.Contains(next.(Model).View(), "Copy failed: no clipboard utility") {
+		t.Error("copy failure not reported")
 	}
 
 	// Switching scope reloads from scratch, and stale results are dropped.

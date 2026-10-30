@@ -182,11 +182,11 @@ func TestReadRepository(t *testing.T) {
 }
 
 func TestParseGraph(t *testing.T) {
-	out := "*   \x1ea1b2c3d\x1fHEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1.0, refs/heads/feat/x\x1fMerge branch 'feat'\x1fBob\x1fbob@x\x1f1700000000\n" +
+	out := "*   \x1ea1b2c3d\x1fa1b2c3d4e5\x1fHEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1.0, refs/heads/feat/x\x1fMerge branch 'feat'\x1fBob\x1fbob@x\x1f1700000000\n" +
 		"|\\  \n" +
-		"| * \x1e9f8e7d6\x1fHEAD, refs/stash\x1fAdd parser\x1fBob\x1fbob@x\x1f1699990000\n" +
+		"| * \x1e9f8e7d6\x1f9f8e7d6aa\x1fHEAD, refs/stash\x1fAdd parser\x1fBob\x1fbob@x\x1f1699990000\n" +
 		"|/  \n" +
-		"* \x1e68b0c4d\x1f\x1fFix\x1fAlice\x1falice@x\x1f1699980000\n"
+		"* \x1e68b0c4d\x1f68b0c4dbb\x1f\x1fFix\x1fAlice\x1falice@x\x1f1699980000\n"
 	lines, err := ParseGraph(out)
 	if err != nil {
 		t.Fatal(err)
@@ -194,7 +194,7 @@ func TestParseGraph(t *testing.T) {
 	if len(lines) != 5 {
 		t.Fatalf("got %d lines", len(lines))
 	}
-	if l := lines[0]; l.Graph != "*" || l.Commit == nil || l.Commit.Author != "Bob" {
+	if l := lines[0]; l.Graph != "*" || l.Commit == nil || l.Commit.Author != "Bob" || l.Commit.FullHash != "a1b2c3d4e5" {
 		t.Errorf("line 0 = %q %+v", l.Graph, l.Commit)
 	}
 	wantRefs := []Ref{{"HEAD -> main", RefHead}, {"origin/main", RefRemote}, {"v1.0", RefTag}, {"feat/x", RefBranch}}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -28,6 +29,30 @@ type graphState struct {
 	done    bool // the whole history is loaded
 	err     error
 	scroll  int
+	cursor  int    // index of the selected commit line
+	status  string // result of the last copy
+}
+
+// copyToClipboard writes to the system clipboard; tests replace it.
+var copyToClipboard = clipboard.WriteAll
+
+type copiedMsg struct {
+	hash string
+	err  error
+}
+
+func copyCommit(c *gitlog.GraphCommit) tea.Cmd {
+	return func() tea.Msg {
+		return copiedMsg{hash: c.FullHash, err: copyToClipboard(c.FullHash)}
+	}
+}
+
+func (m *Model) receiveCopied(msg copiedMsg) {
+	if msg.err != nil {
+		m.graph.status = "Copy failed: " + msg.err.Error()
+		return
+	}
+	m.graph.status = "Copied " + msg.hash
 }
 
 type graphMsg struct {
@@ -65,8 +90,29 @@ func (m *Model) receiveGraph(msg graphMsg) tea.Cmd {
 		}
 	}
 	g.done = msg.err != nil || commits < msg.limit
+	if !g.isCommit(g.cursor) {
+		g.cursor = g.nextCommit(g.cursor, 1)
+	}
 	m.clampGraph()
 	return m.loadMoreGraph()
+}
+
+func (g *graphState) isCommit(i int) bool {
+	return i >= 0 && i < len(g.lines) && g.lines[i].Commit != nil
+}
+
+// nextCommit returns the first commit line from i in direction dir (+1 or
+// -1), falling back to the other direction, or 0 when there is none.
+func (g *graphState) nextCommit(i, dir int) int {
+	i = max(min(i, len(g.lines)-1), 0)
+	for _, d := range []int{dir, -dir} {
+		for j := i; j >= 0 && j < len(g.lines); j += d {
+			if g.lines[j].Commit != nil {
+				return j
+			}
+		}
+	}
+	return 0
 }
 
 // loadMoreGraph extends the graph when the view nears the loaded end.
@@ -82,20 +128,30 @@ func (m *Model) loadMoreGraph() tea.Cmd {
 
 func (m *Model) graphKey(key string) tea.Cmd {
 	g := &m.graph
+	g.status = ""
 	page := max(m.graphRows(), 1)
 	switch key {
 	case "up", "k":
-		g.scroll--
+		if j := g.nextCommit(g.cursor-1, -1); j < g.cursor {
+			g.cursor = j
+		}
 	case "down", "j":
-		g.scroll++
+		if j := g.nextCommit(g.cursor+1, 1); j > g.cursor {
+			g.cursor = j
+		}
 	case "pgup", "ctrl+u":
-		g.scroll -= page
+		g.cursor = g.nextCommit(g.cursor-page, -1)
 	case "pgdown", "ctrl+d", " ":
-		g.scroll += page
+		g.cursor = g.nextCommit(g.cursor+page, 1)
 	case "home", "g":
-		g.scroll = 0
+		g.cursor = g.nextCommit(0, 1)
 	case "end", "G":
-		g.scroll = len(g.lines)
+		g.cursor = g.nextCommit(len(g.lines)-1, -1)
+	case "enter":
+		if g.isCommit(g.cursor) {
+			return copyCommit(g.lines[g.cursor].Commit)
+		}
+		return nil
 	case "b":
 		*g = graphState{all: !g.all, limit: graphPage}
 		return m.loadGraph()
@@ -104,9 +160,17 @@ func (m *Model) graphKey(key string) tea.Cmd {
 	return m.loadMoreGraph()
 }
 
+// clampGraph scrolls so the cursor stays visible.
 func (m *Model) clampGraph() {
 	g := &m.graph
-	g.scroll = max(min(g.scroll, len(g.lines)-m.graphRows()), 0)
+	rows := max(m.graphRows(), 1)
+	if g.cursor < g.scroll {
+		g.scroll = g.cursor
+	}
+	if g.cursor >= g.scroll+rows {
+		g.scroll = g.cursor - rows + 1
+	}
+	g.scroll = max(min(g.scroll, len(g.lines)-rows), 0)
 }
 
 func (m Model) graphRows() int {
@@ -131,12 +195,15 @@ func (m Model) graphView() string {
 	}
 	var b strings.Builder
 	end := min(g.scroll+m.graphRows(), len(g.lines))
-	for _, l := range g.lines[g.scroll:end] {
-		b.WriteString(m.graphLine(l) + "\n")
+	for i := g.scroll; i < end; i++ {
+		b.WriteString(m.graphLine(g.lines[i], i == g.cursor) + "\n")
 	}
 	status := fmt.Sprintf("%d–%d of %d lines", g.scroll+1, end, len(g.lines))
 	if !g.done {
 		status += " · more loading as you scroll"
+	}
+	if g.status != "" {
+		status = g.status
 	}
 	b.WriteString(" " + t.dim.Render(status) + "\n")
 	return b.String()
@@ -147,11 +214,17 @@ const (
 	graphDateWidth   = 10
 )
 
-func (m Model) graphLine(l gitlog.GraphLine) string {
+// graphLine renders one graph line; the selected commit gets a marker in
+// the left margin and a bold subject.
+func (m Model) graphLine(l gitlog.GraphLine, selected bool) string {
 	t := m.theme
 	c := l.Commit
 	if c == nil {
 		return " " + ansi.Truncate(l.Graph, max(m.width-2, 1), "")
+	}
+	margin := " "
+	if selected {
+		margin = t.accent.Bold(true).Render("▌")
 	}
 	id := m.data.AuthorOf(c.Author, c.Email)
 	hue := id
@@ -169,7 +242,10 @@ func (m Model) graphLine(l gitlog.GraphLine) string {
 	if faded {
 		subject = t.dim
 	}
-	left := " " + graph + " " + t.dim.Render(c.Hash) + " "
+	if selected {
+		subject = subject.Bold(true)
+	}
+	left := margin + graph + " " + t.dim.Render(c.Hash) + " "
 	if len(c.Refs) > 0 {
 		left += m.refs(c.Refs) + " "
 	}
