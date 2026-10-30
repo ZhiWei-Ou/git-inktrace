@@ -181,6 +181,9 @@ func (m Model) graphScope() string {
 	if m.graph.all {
 		return "all branches"
 	}
+	if m.opts.Branch != "" {
+		return "current branch " + m.opts.Branch
+	}
 	return "current branch"
 }
 
@@ -191,7 +194,7 @@ func (m Model) graphView() string {
 		return " " + t.dim.Render("Cannot read the graph: "+g.err.Error()) + "\n"
 	}
 	if !g.loaded && len(g.lines) == 0 {
-		return " " + t.dim.Render("Loading graph…") + "\n"
+		return " " + t.dim.Render("Loading graph of "+m.graphScope()+"…") + "\n"
 	}
 	var b strings.Builder
 	end := min(g.scroll+m.graphRows(), len(g.lines))
@@ -205,7 +208,9 @@ func (m Model) graphView() string {
 	if g.status != "" {
 		status = g.status
 	}
-	b.WriteString(" " + t.dim.Render(status) + "\n")
+	// The scope leads the status line so pressing a visibly changes it, even
+	// when every branch is already merged into the current one.
+	b.WriteString(" " + t.accent.Render(m.graphScope()) + t.dim.Render(" · "+status) + "\n")
 	return b.String()
 }
 
