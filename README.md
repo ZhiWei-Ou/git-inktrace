@@ -138,6 +138,7 @@ All build rules live in the `Makefile`. Go workspaces are turned off (`GOWORK=of
 | Target | Description |
 | --- | --- |
 | `make build` | Build for the host platform into `bin/git-inktrace` |
+| `make install` | Install `git-inktrace` into `$(go env GOBIN)`, or `$(go env GOPATH)/bin` if unset |
 | `make test` | Run unit tests |
 | `make check` | Run `go vet` and the tests |
 | `make release` | Build static release binaries for every platform into `bin/`, plus a SHA-256 checksum file |

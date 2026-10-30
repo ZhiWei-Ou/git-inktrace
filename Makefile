@@ -20,13 +20,17 @@ PLATFORMS := \
 
 RELEASE_TARGETS := $(addprefix release-,$(subst /,-,$(PLATFORMS)))
 
-.PHONY: all build run test vet fmt tidy check release checksums clean help $(RELEASE_TARGETS)
+.PHONY: all build install run test vet fmt tidy check release checksums clean help $(RELEASE_TARGETS)
 
 all: check build
 
 ## build: build for the host platform into bin/
 build:
 	go build $(GOFLAGS_BUILD) -o $(BIN_DIR)/$(BINARY)$(shell go env GOEXE) .
+
+## install: install into $(go env GOBIN), or $(go env GOPATH)/bin if unset
+install:
+	go install $(GOFLAGS_BUILD) .
 
 ## run: build and run in the current repository
 run: build
