@@ -440,30 +440,13 @@ func (m Model) ownersView() string {
 				grid[y][x] = cell{" ", i}
 			}
 		}
-		// The label sits inside the tile, and inside the selected tile's
-		// border: a box when it has the rows, else just its sides.
-		lx, ly, lx1, ly1 := tl.x0+1, tl.y0, x1, y1
-		if isSel {
-			lx1--
-			for y := tl.y0; y < y1; y++ {
-				grid[y][tl.x0].r, grid[y][x1-1].r = "│", "│"
-			}
-			if y1-tl.y0 >= 3 {
-				ly, ly1 = tl.y0+1, y1-1
-				for x := tl.x0 + 1; x < x1-1; x++ {
-					grid[tl.y0][x].r, grid[y1-1][x].r = "─", "─"
-				}
-				grid[tl.y0][tl.x0].r, grid[tl.y0][x1-1].r = "╭", "╮"
-				grid[y1-1][tl.x0].r, grid[y1-1][x1-1].r = "╰", "╯"
-			}
-		}
-		for j, line := range m.tileLabel(tl, lx1-lx) {
-			if ly+j >= ly1 {
+		for j, line := range m.tileLabel(tl, x1-tl.x0-1) {
+			if tl.y0+j >= y1 {
 				break
 			}
 			for k, r := range []rune(line) {
-				if x := lx + k; x < lx1 {
-					grid[ly+j][x].r = string(r)
+				if x := tl.x0 + 1 + k; x < x1 {
+					grid[tl.y0+j][x].r = string(r)
 				}
 			}
 		}
@@ -492,7 +475,9 @@ func (m Model) ownersView() string {
 }
 
 // tileStyle fills a tile with its owner's color, deeper the larger the
-// owner's share, and picks a readable text color on it.
+// owner's share, and picks a readable text color on it. Tiles other than
+// the selected one fade halfway to the empty cell color, keeping their
+// order of depth, so the selection stands out without a frame.
 func (m Model) tileStyle(tl tile, selected bool) lipgloss.Style {
 	t := m.theme
 	hue, level := len(authorHues), 1
@@ -501,8 +486,11 @@ func (m Model) tileStyle(tl tile, selected bool) lipgloss.Style {
 		hue = min(top, len(authorHues))
 		level = min(1+int(share*4), 4)
 	}
-	bg := t.cellColor(hue, level)
-	style := lipgloss.NewStyle().Background(bg).Foreground(lipgloss.Color(contrastText(string(bg))))
+	bg := string(t.cellColor(hue, level))
+	if !selected {
+		bg = mix(bg, string(t.cellColor(-1, 0)), 0.5)
+	}
+	style := lipgloss.NewStyle().Background(lipgloss.Color(bg)).Foreground(lipgloss.Color(contrastText(bg)))
 	if selected {
 		style = style.Bold(true)
 	}
