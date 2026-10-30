@@ -19,6 +19,8 @@ PLATFORMS := \
 	windows/amd64 windows/arm64
 
 RELEASE_TARGETS := $(addprefix release-,$(subst /,-,$(PLATFORMS)))
+RELEASE_PREFIX := $(BINARY)_$(subst /,_,$(subst .,_,$(patsubst v%,%,$(VERSION))))
+RELEASE_FILES := $(foreach platform,$(PLATFORMS),$(RELEASE_PREFIX)_$(subst /,_,$(platform))$(if $(filter windows/%,$(platform)),.exe,))
 
 .PHONY: all build install run test vet fmt tidy check release checksums clean help $(RELEASE_TARGETS)
 
@@ -67,11 +69,11 @@ REL_EXT  = $(if $(filter windows,$(REL_OS)),.exe,)
 
 $(RELEASE_TARGETS): release-%:
 	CGO_ENABLED=0 GOOS=$(REL_OS) GOARCH=$(REL_ARCH) $(if $(filter arm,$(REL_ARCH)),GOARM=7,) \
-		go build $(GOFLAGS_BUILD) -o $(BIN_DIR)/$(BINARY)-$(VERSION)-$(REL_OS)-$(REL_ARCH)$(REL_EXT) .
+		go build $(GOFLAGS_BUILD) -o $(BIN_DIR)/$(RELEASE_PREFIX)_$(REL_OS)_$(REL_ARCH)$(REL_EXT) .
 
 ## checksums: write SHA256 sums of release binaries
 checksums:
-	cd $(BIN_DIR) && $(SHA256) $(BINARY)-$(VERSION)-* > $(BINARY)-$(VERSION)-SHA256SUMS
+	cd $(BIN_DIR) && $(SHA256) $(RELEASE_FILES) > $(RELEASE_PREFIX)_SHA256SUMS
 
 ## clean: remove build output
 clean:

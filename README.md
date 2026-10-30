@@ -171,7 +171,7 @@ All build rules live in the `Makefile`. Go workspaces are turned off (`GOWORK=of
 | `make release-<os>-<arch>` | Build one release binary, e.g. `make release-linux-arm64` |
 | `make clean` | Remove `bin/` |
 
-Release platforms: `darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`, `linux/arm` (ARMv7), `windows/amd64`, `windows/arm64`. Release binaries are named `git-inktrace-<version>-<os>-<arch>`, with `.exe` on Windows.
+Release platforms: `darwin/amd64`, `darwin/arm64`, `linux/amd64`, `linux/arm64`, `linux/arm` (ARMv7), `windows/amd64`, `windows/arm64`. Release binaries are named `git-inktrace_<version>_<os>_<arch>`, with `.exe` on Windows. The filename omits a leading `v` and replaces version dots with underscores: tag `v1.2.3` produces `git-inktrace_1_2_3_darwin_arm64` and `git-inktrace_1_2_3_windows_amd64.exe`.
 
 ### Versioning
 
@@ -182,6 +182,19 @@ git-inktrace v0.1.0 (rev 68b0c4dadda0, 2026-10-30T01:43:57Z, darwin/arm64)
 ```
 
 Tag a commit (`git tag v0.1.0`) before `make release` to get a release version instead of a commit hash.
+
+### GitHub Releases
+
+Pushing a tag triggers the [release workflow](.github/workflows/release.yml). It runs `make check`, builds all seven platforms, and publishes the executables and a SHA-256 checksum file to a GitHub Release with generated release notes. The full tag is embedded in each binary and shown by `-version`.
+
+After committing the workflow and your changes, publish a version with:
+
+```sh
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+For a local release build with the same naming and embedded version, run `make -j2 release VERSION=v1.2.3`.
 
 ## Contributing
 
