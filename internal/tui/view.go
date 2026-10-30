@@ -38,6 +38,8 @@ func (m Model) View() string {
 		b.WriteString(m.graphView())
 	case m.view == HoursView:
 		b.WriteString(m.punchCard())
+	case m.view == OwnersView:
+		b.WriteString(m.ownersView())
 	}
 	b.WriteString("\n" + m.footer())
 	return b.String()
@@ -68,7 +70,7 @@ func (m Model) header() string {
 func (m Model) tabs() string {
 	t := m.theme
 	var parts []string
-	for i, name := range []string{"Heatmap", "Files", "Graph", "Hours"} {
+	for i, name := range []string{"Heatmap", "Files", "Graph", "Hours", "Owners"} {
 		if View(i) == m.view {
 			parts = append(parts, t.activeTab.Render(name))
 		} else {

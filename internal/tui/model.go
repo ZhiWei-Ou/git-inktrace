@@ -20,6 +20,7 @@ const (
 	FilesView
 	GraphView
 	HoursView
+	OwnersView
 	viewCount
 )
 
@@ -67,6 +68,7 @@ type Model struct {
 	cursor                    int // selected row of the file ranking
 
 	graph    graphState
+	owners   ownersState
 	inspect  inspectState // details of the selected file or commit
 	helpOpen bool         // the help page covers the current page
 
@@ -161,8 +163,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) setView(v View) tea.Cmd {
 	m.view = v
-	if v == GraphView {
+	switch v {
+	case GraphView:
 		return m.loadGraph()
+	case OwnersView:
+		m.refreshOwners()
 	}
 	return nil
 }
@@ -197,7 +202,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.inspect.open {
 		switch msg.String() {
-		case "ctrl+c", "tab", "shift+tab", "1", "2", "3", "4":
+		case "ctrl+c", "tab", "shift+tab", "1", "2", "3", "4", "5":
 			m.inspect = inspectState{} // leave it for the view keys below
 		default:
 			return m, m.inspectKey(msg.String())
@@ -220,6 +225,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.setView(GraphView)
 	case "4":
 		return m, m.setView(HoursView)
+	case "5":
+		return m, m.setView(OwnersView)
 	case "a", "A":
 		if m.view == GraphView {
 			return m, m.graphKey(msg.String()) // a switches the graph's branches
@@ -247,6 +254,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.scrollFiles(msg.String())
 		case GraphView:
 			return m, m.graphKey(msg.String())
+		case OwnersView:
+			m.ownersKey(msg.String())
 		}
 		return m, nil
 	}
@@ -349,4 +358,5 @@ func (m *Model) refresh() {
 	m.punch = m.data.PunchCard(m.cal.Start, m.cal.End, m.author)
 	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.author, m.opts.Top)
 	m.clampScroll()
+	m.refreshOwners()
 }

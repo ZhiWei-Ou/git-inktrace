@@ -30,6 +30,7 @@ func run() error {
 		files       = flag.Bool("files", false, "open on the file ranking")
 		graph       = flag.Bool("graph", false, "open on the branch graph")
 		hours       = flag.Bool("hours", false, "open on the punch card of commit hours")
+		owners      = flag.Bool("owners", false, "open on the code ownership treemap")
 		showVersion = flag.Bool("version", false, "print version and exit")
 	)
 	flag.Usage = func() {
@@ -44,7 +45,7 @@ func run() error {
 		flag.Usage()
 		return fmt.Errorf("unexpected argument %q", flag.Arg(0))
 	}
-	view, err := startView(*heatmap, *files, *graph, *hours)
+	view, err := startView(*heatmap, *files, *graph, *hours, *owners)
 	if err != nil {
 		return err
 	}
@@ -92,20 +93,20 @@ func run() error {
 	})
 }
 
-// startView picks the first page from the -heatmap, -files, -graph and
-// -hours flags.
-func startView(heatmap, files, graph, hours bool) (tui.View, error) {
+// startView picks the first page from the -heatmap, -files, -graph, -hours
+// and -owners flags.
+func startView(heatmap, files, graph, hours, owners bool) (tui.View, error) {
 	view, n := tui.HeatmapView, 0
 	for _, f := range []struct {
 		set  bool
 		view tui.View
-	}{{heatmap, tui.HeatmapView}, {files, tui.FilesView}, {graph, tui.GraphView}, {hours, tui.HoursView}} {
+	}{{heatmap, tui.HeatmapView}, {files, tui.FilesView}, {graph, tui.GraphView}, {hours, tui.HoursView}, {owners, tui.OwnersView}} {
 		if f.set {
 			view, n = f.view, n+1
 		}
 	}
 	if n > 1 {
-		return 0, fmt.Errorf("-heatmap, -files, -graph and -hours are mutually exclusive")
+		return 0, fmt.Errorf("-heatmap, -files, -graph, -hours and -owners are mutually exclusive")
 	}
 	return view, nil
 }

@@ -299,19 +299,16 @@ type FileStat struct {
 	Added     int
 	Deleted   int
 	Binary    bool
-	Gone      bool // deleted: no longer in the tracked files
-	TopAuthor int  // author with most commits touching the file
+	Gone      bool        // deleted: no longer in the tracked files
+	TopAuthor int         // author with most commits touching the file
+	ByAuthor  map[int]int // author index -> commits touching the file
 }
 
 // FileRank returns the files changed in the most commits between from and to
 // (inclusive dates), limited to limit entries when limit > 0.
 func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 	from, to = midnight(from.Local()), midnight(to.Local())
-	type acc struct {
-		FileStat
-		byAuthor map[int]int
-	}
-	files := map[string]*acc{}
+	files := map[string]*FileStat{}
 	for _, c := range d.commits {
 		if author != AllAuthors && c.author != author {
 			continue
@@ -323,11 +320,11 @@ func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 			a := files[f.Path]
 			if a == nil {
 				gone := d.tracked != nil && !d.tracked[f.Path]
-				a = &acc{FileStat: FileStat{Path: f.Path, Gone: gone}, byAuthor: map[int]int{}}
+				a = &FileStat{Path: f.Path, Gone: gone, ByAuthor: map[int]int{}}
 				files[f.Path] = a
 			}
 			a.Commits++
-			a.byAuthor[c.author]++
+			a.ByAuthor[c.author]++
 			if f.Added < 0 {
 				a.Binary = true
 			} else {
@@ -338,8 +335,8 @@ func (d *Data) FileRank(from, to time.Time, author, limit int) []FileStat {
 	}
 	out := make([]FileStat, 0, len(files))
 	for _, a := range files {
-		a.TopAuthor = topAuthor(a.byAuthor)
-		out = append(out, a.FileStat)
+		a.TopAuthor = topAuthor(a.ByAuthor)
+		out = append(out, *a)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Commits != out[j].Commits {

@@ -50,6 +50,7 @@
 - **Branch graph** — the commit graph drawn by git (`git log --graph`) with branches, tags and merges: lanes keep git's branch colors (configurable with `log.graphColors`) and each commit's `*` takes its author's color. It shows every branch, remote branch and tag by default (stashes excluded), or only the current branch when the repository has more than 10 local and remote branches; press `a` to switch between the two. Select a commit and press `enter` to read its full message and the files it changed, like `git diff --stat`, `o` to copy its full hash to the system clipboard, or `e` to reword its message; press `/` to search commits by message, hash, author or email; history loads page by page as you scroll.
 - **Reword a commit message** — press `e` on a commit of the current branch to edit its message in the editor git would use (`GIT_EDITOR`, `core.editor`, `VISUAL`, `EDITOR`, then `vi`). When a remote-tracking branch already holds the commit, git-inktrace warns that rewording it needs a force push and continues only on `y`. The commits after it are recreated with the same trees, authors and dates and merges keep their shape, so the work tree, the index and uncommitted changes stay untouched and no conflict can arise; the current branch moves to the rewritten history, while other branches keep the original commits. This is the only action that writes to the repository.
 - **Punch card** — commits by weekday and hour, read on each author's own clock, so a commit made at 23:00 in Tokyo counts at 23:00 wherever you look at it. Each slot takes the color of its busiest author and grows with how busy it was; weekday totals sit on the right and an hourly profile below, all centered. Above it, aligned columns show the peak slot, the busiest hour, the shares of commits made after hours (weekdays before 9:00 or from 18:00) and on weekends, and the main time zone with how many there are. Below it, each author gets a row with their own hourly profile, busiest hour and after-hours and weekend shares.
+- **Ownership treemap** — the work tree as nested tiles sized by file changes (or lines changed, with `w`) in the window, laid out with the squarified algorithm. Each tile takes the color of the author who changed it most, deeper the larger their share, and names that owner. Below the map, the selected file or directory shows its changes, lines, authors, owner and bus factor — how few authors made over half of the changes — with directories touched by a single author flagged. `enter` opens a directory or a file's commits and `esc` goes back up; directory chains like `src/main/java` are one tile, deleted files are left out, and tiles too small to label fold into one.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.
 - **Focus on one author** — filter the heatmap, the file ranking and the punch card to a single contributor.
 - **Browse history by year** — step the window back and forth with the arrow keys; arrows in the title bar show which way more history lies.
@@ -88,6 +89,7 @@ git-inktrace [flags]
   -files      open on the file ranking
   -graph      open on the branch graph
   -hours      open on the punch card of commit hours
+  -owners     open on the code ownership treemap
   -version    print version and exit
 ```
 
@@ -99,6 +101,7 @@ git inktrace -all                 # count commits on every branch and tag, skipp
 git inktrace -top 0               # rank every changed file
 git inktrace -graph               # open straight on the branch graph
 git inktrace -hours               # see when the team commits
+git inktrace -owners              # see who owns which part of the code
 ```
 
 Authors are merged the way `git shortlog` groups them, plus by email: commits that share an email (case-insensitive) or a name belong to one author. To join identities that share neither, add a [`.mailmap`](https://git-scm.com/docs/gitmailmap) file to the repository, for example:
@@ -115,12 +118,14 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | Key | Action |
 | --- | --- |
 | `?` | Show or hide every key, grouped by page; the bottom line keeps only the main ones |
-| `tab`, `1`, `2`, `3`, `4` | Switch between the heatmap, the file ranking, the graph and the punch card |
+| `tab`, `1` – `5` | Switch between the heatmap, the file ranking, the graph, the punch card and the ownership treemap |
 | `←` `→` / `h` `l` | Move the window one year back / forward (one window at a time when the terminal shows less than a year) |
 | `t` | Return to the latest window |
-| `a` / `A` | Next / previous author filter (heatmap, file ranking and punch card) |
-| `↑` `↓` / `k` `j` | Select the previous / next file in the ranking, commit in the graph, or scroll an inspect page |
-| `enter` | Inspect the selected file (the commits that touched it) or commit (its full message and the files it changed); `q` or `esc` goes back |
+| `a` / `A` | Next / previous author filter (every page but the graph) |
+| `↑` `↓` / `k` `j` | Select the previous / next file in the ranking, commit in the graph or tile of the treemap (largest first), or scroll an inspect page |
+| `enter` | Inspect the selected file (the commits that touched it) or commit (its full message and the files it changed), or open the selected directory of the treemap; `q` or `esc` goes back |
+| `esc`, `backspace` (treemap) | Go up to the parent directory |
+| `w` (treemap) | Size tiles by file changes or by lines changed |
 | `o` | Copy the selected commit's full hash to the clipboard (graph) |
 | `e` | Reword the selected commit's message in your editor (graph, current branch only); `y` confirms when the commit is already pushed |
 | `/` | Search the graph, highlighting matches as you type; `tab` completes `@commit`, `@author` or `@email`, `enter` jumps to the first match from the selection, `esc` closes the prompt and clears the highlight, as does an empty search; outside the prompt `esc` clears the last search |

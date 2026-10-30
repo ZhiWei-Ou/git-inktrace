@@ -60,6 +60,8 @@ func (m Model) inspectLines() []string {
 // openInspect opens the detail page of the selected file or commit.
 func (m *Model) openInspect() tea.Cmd {
 	switch m.view {
+	case OwnersView:
+		m.ownersEnter()
 	case FilesView:
 		if m.cursor >= len(m.files) {
 			return nil

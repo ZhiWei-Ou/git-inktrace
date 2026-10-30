@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"math"
 	"os/exec"
 	"strings"
 	"sync/atomic"
@@ -238,7 +239,7 @@ func TestHoursView(t *testing.T) {
 	if m.punch.Total != m.cal.Total || m.punch.Total >= press(testModel(t, 100), "4").punch.Total {
 		t.Errorf("filtered punch card total %d, calendar %d", m.punch.Total, m.cal.Total)
 	}
-	if m = press(m, "tab"); m.view != HeatmapView {
+	if m = press(m, "tab"); m.view != OwnersView {
 		t.Errorf("tab from hours: view %d", m.view)
 	}
 }
@@ -1038,5 +1039,169 @@ func TestGraphStartsOnCurrentBranchWithManyBranches(t *testing.T) {
 	}
 	if m := New(data, Options{Branches: allBranchesLimit + 1}); m.graph.all || !strings.Contains(m.graphScope(), "current branch") {
 		t.Error("many branches should graph the current one")
+	}
+}
+
+func ownersModel(t *testing.T, width, height int) Model {
+	t.Helper()
+	now := time.Now()
+	change := func(name, path string, added int) gitlog.Commit {
+		return gitlog.Commit{Author: name, Email: strings.ToLower(name) + "@x", Time: now,
+			Files: []gitlog.FileChange{{Path: path, Added: added, Deleted: 1}}}
+	}
+	var commits []gitlog.Commit
+	for i := 0; i < 12; i++ {
+		commits = append(commits, change("Alice", "src/core/engine.go", 10))
+	}
+	for i := 0; i < 6; i++ {
+		commits = append(commits, change([]string{"Bob", "Carol"}[i%2], "src/ui/view.go", 100))
+	}
+	for i := 0; i < 4; i++ {
+		commits = append(commits, change("Bob", "docs/guide/intro.md", 1))
+	}
+	commits = append(commits, change("Alice", "README.md", 1), change("Carol", "old.go", 1))
+	tracked := []string{"src/core/engine.go", "src/ui/view.go", "docs/guide/intro.md", "README.md"}
+	m := New(stats.New(commits, tracked), Options{Repo: "demo", View: OwnersView})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	return next.(Model)
+}
+
+func TestBuildOwners(t *testing.T) {
+	m := ownersModel(t, 100, 30)
+	root := m.owners.root
+	// Deleted files are left out; docs/guide is one tile.
+	var names []string
+	for _, c := range root.children {
+		names = append(names, c.name)
+	}
+	if strings.Join(names, " ") != "src docs/guide README.md" {
+		t.Fatalf("root children: %v", names)
+	}
+	src := root.find("src")
+	if src == nil || src.changes != 18 || src.added != 12*10+6*100 || len(src.byAuthor) != 3 {
+		t.Fatalf("src = %+v", src)
+	}
+	if top, share, bus := src.owner(); top != m.data.AuthorOf("Alice", "alice@x") || share < 0.66 || share > 0.67 || bus != 1 {
+		t.Errorf("src owner %d %.2f bus %d", top, share, bus)
+	}
+	// Bob and Carol split src/ui evenly: neither alone made over half.
+	if _, _, bus := root.find("src/ui").owner(); bus != 2 {
+		t.Errorf("ui bus factor %d", bus)
+	}
+	if root.parent(root.find("src/ui")) != src || root.find("docs/guide").dir != true {
+		t.Error("parent or find wrong")
+	}
+}
+
+func TestSquarify(t *testing.T) {
+	r := rect{0, 0, 40, 20}
+	rects := squarify([]float64{50, 25, 12, 8, 5}, r)
+	area := 0.0
+	for i, a := range rects {
+		area += a.w * a.h
+		if a.x < -1e-9 || a.y < -1e-9 || a.x+a.w > r.w+1e-9 || a.y+a.h > r.h+1e-9 {
+			t.Errorf("rect %d outside: %+v", i, a)
+		}
+		for j, b := range rects[:i] {
+			if a.x+1e-9 < b.x+b.w && b.x+1e-9 < a.x+a.w && a.y+1e-9 < b.y+b.h && b.y+1e-9 < a.y+a.h {
+				t.Errorf("rects %d and %d overlap: %+v %+v", j, i, b, a)
+			}
+		}
+	}
+	if math.Abs(area-r.w*r.h) > 1e-6 || math.Abs(rects[0].w*rects[0].h-400) > 1e-6 {
+		t.Errorf("areas wrong: total %.2f, first %+v", area, rects[0])
+	}
+}
+
+func TestOwnersView(t *testing.T) {
+	m := ownersModel(t, 100, 30)
+	out := ansi.Strip(m.View())
+	for _, want := range []string{"Owners", "demo/", "area: file changes", "▸ src/", "docs/guide/", "Alice 67%", "18 changes", "bus factor 1"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "old.go") {
+		t.Error("deleted file shown")
+	}
+	lines := strings.Split(m.View(), "\n")
+	if len(lines) > 30 {
+		t.Errorf("%d lines for 30 rows", len(lines))
+	}
+	for _, l := range lines {
+		if w := lipgloss.Width(l); w > 100 {
+			t.Errorf("line %d wide", w)
+		}
+	}
+
+	// Enter opens a directory, esc goes back and selects it again.
+	m = press(m, "enter")
+	if m.owners.dir != "src" || !strings.Contains(ansi.Strip(m.View()), "demo/src/") {
+		t.Fatalf("enter: dir %q", m.owners.dir)
+	}
+	m = press(m, "j")
+	sel := m.selectedTile()
+	if sel == nil || sel.node.path != "src/ui" {
+		t.Fatalf("second tile in src: %+v", sel)
+	}
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m = next.(Model); m.owners.dir != "" || m.selectedTile().node.path != "src" {
+		t.Errorf("esc: dir %q, selected %s", m.owners.dir, m.selectedTile().node.path)
+	}
+
+	// w sizes by lines, where src/ui outweighs src/core.
+	m = press(m, "enter", "w")
+	if !strings.Contains(m.View(), "area: lines changed") || m.selectedTile().node.path != "src/ui" {
+		t.Errorf("w: selected %s", m.selectedTile().node.path)
+	}
+
+	// Enter on a file opens its commits.
+	m = press(m, "enter", "enter")
+	if !m.inspect.open || m.inspect.path != "src/ui/view.go" || len(m.inspect.commits) != 6 {
+		t.Errorf("inspect %+v", m.inspect)
+	}
+
+	// The author filter narrows the map; a directory gone from it falls
+	// back to the root.
+	m = press(ownersModel(t, 100, 30), "enter", "j")
+	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = press(next.(Model), "a") // Alice
+	if out := ansi.Strip(m.View()); strings.Contains(out, "docs/guide") || !strings.Contains(out, "sole author") {
+		t.Errorf("filtered map:\n%s", out)
+	}
+	m = press(ownersModel(t, 100, 30), "j", "enter") // docs/guide
+	if m = press(m, "a"); m.owners.dir != "" {
+		t.Errorf("dir %q kept though Alice never touched it", m.owners.dir)
+	}
+}
+
+func TestOwnersFoldsSmallTiles(t *testing.T) {
+	now := time.Now()
+	var commits []gitlog.Commit
+	var tracked []string
+	for i := 0; i < 40; i++ {
+		p := fmt.Sprintf("pkg%02d.go", i)
+		tracked = append(tracked, p)
+		for j := 0; j <= 40-i; j++ {
+			commits = append(commits, gitlog.Commit{Author: "A", Email: "a@x", Time: now,
+				Files: []gitlog.FileChange{{Path: p, Added: 1}}})
+		}
+	}
+	m := New(stats.New(commits, tracked), Options{View: OwnersView})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 20})
+	m = next.(Model)
+	w, h := m.ownersMapSize()
+	tiles := m.ownersTiles(m.owners.root, w, h)
+	folded := 0
+	for _, tl := range tiles {
+		folded += tl.folded
+	}
+	if folded == 0 || len(tiles)+folded-1 != 40 || !strings.Contains(m.View(), fmt.Sprintf("+%d more", folded)) {
+		t.Errorf("no folded tile: %d tiles, %d folded", len(tiles), folded)
+	}
+	for _, tl := range tiles {
+		if tl.node != nil && (tl.x1-tl.x0 < minTileWidth || tl.y1-tl.y0 < minTileHeight) {
+			t.Errorf("tile too small: %+v", tl)
+		}
 	}
 }

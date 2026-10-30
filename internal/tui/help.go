@@ -21,16 +21,16 @@ type helpSection struct {
 var helpSections = []helpSection{
 	{"General", "", []binding{
 		{"tab ⇧tab", "next / previous page"},
-		{"1 2 3 4", "jump to a page"},
+		{"1 – 5", "jump to a page"},
 		{"?", "this help"},
 		{"q ctrl+c", "quit"},
 	}},
-	{"Time window", "heatmap files hours", []binding{
+	{"Time window", "all but graph", []binding{
 		{"← → h l", "year back / forward"},
 		{"t", "latest window"},
 		{"a A", "next / previous author"},
 	}},
-	{"Lists", "files graph", []binding{
+	{"Lists", "files graph owners", []binding{
 		{"↑ ↓ k j", "select"},
 		{"pgup pgdn", "page"},
 		{"g G", "top / bottom"},
@@ -44,10 +44,13 @@ var helpSections = []helpSection{
 		{"o", "copy full hash"},
 		{"e", "reword message"},
 	}},
+	{"Owners", "", []binding{
+		{"enter", "open directory or file"},
+		{"esc ⌫", "up a directory"},
+		{"w", "area by changes / lines"},
+	}},
 	{"Inspect", "", []binding{
-		{"↑ ↓ k j", "scroll"},
-		{"pgup pgdn", "page"},
-		{"g G", "top / bottom"},
+		{"↑ ↓ pgup", "scroll, g G ends"},
 		{"q esc", "back"},
 	}},
 }
@@ -175,6 +178,8 @@ func (m Model) footer() string {
 		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"←→", "year"}, {"a", "author"}, {"?", "help"}, {"q", "quit"}}
 	case m.view == GraphView:
 		keys = []binding{{"↑↓", "select"}, {"enter", "inspect"}, {"/", "search"}, {"e", "reword"}, {"?", "help"}, {"q", "quit"}}
+	case m.view == OwnersView:
+		keys = []binding{{"↑↓", "select"}, {"enter", "open"}, {"esc", "up"}, {"w", "area"}, {"a", "author"}, {"?", "help"}, {"q", "quit"}}
 	default: // heatmap and hours
 		keys = []binding{{"←→", "year"}, {"a", "author"}, {"tab", "next page"}, {"?", "help"}, {"q", "quit"}}
 	}
