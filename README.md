@@ -26,9 +26,9 @@
 
      Less ■ ■ ■ ■ ■ More                                                    144 active days
 
-     ■ Carol <carol@x.io> 22  ■ Dave <dave@x.io> 22  ■ Bob <bob@x.io> 24
-     ■ Grace <grace@x.io> 22  ■ Heidi <heidi@x.io> 21  ■ Alice <alice@x.io> 22
-     ■ Erin <erin@x.io> 19  ■ Ivan <ivan@x.io> 20  ■ +1 other 17
+     ■ Bob <bob@x.io> 24 · 12.7%  ■ Carol <carol@x.io> 22 · 11.6%  ■ Dave <dave@x.io> 22 · 11.6%
+     ■ Grace <grace@x.io> 22 · 11.6%  ■ Alice <alice@x.io> 22 · 11.6%  ■ Heidi <heidi@x.io> 21 · 11.1%
+     ■ Ivan <ivan@x.io> 20 · 10.6%  ■ Erin <erin@x.io> 19 · 10.1%  ■ +1 other 17 · 9.0%
 
  ←→ year · t latest · a/A author · tab files · q quit
 ```
@@ -36,6 +36,7 @@
 ## Features
 
 - **Contribution heatmap** — a GitHub-style calendar of weeks by weekdays, sized to fit the terminal (up to 53 weeks).
+- **Contribution share** — the legend lists each author with their email, commit count and share of all commits in the visible time window, busiest first.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most.
 - **One person, one author** — commits are merged by email and by name, after applying `.mailmap`, so renames and multiple addresses do not split a contributor. Each author is shown with their newest name.

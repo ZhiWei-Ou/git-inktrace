@@ -180,6 +180,19 @@ func (c Calendar) Level(total int) int {
 	return min(max(l, 1), 4)
 }
 
+// AuthorCommits counts each author's commits between from and to (inclusive
+// dates), indexed like Authors.
+func (d *Data) AuthorCommits(from, to time.Time) []int {
+	from, to = midnight(from.Local()), midnight(to.Local())
+	counts := make([]int, len(d.Authors))
+	for _, c := range d.commits {
+		if !c.day.Before(from) && !c.day.After(to) {
+			counts[c.author]++
+		}
+	}
+	return counts
+}
+
 // FileStat is the change history of one path.
 type FileStat struct {
 	Path      string

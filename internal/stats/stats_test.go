@@ -107,6 +107,14 @@ func TestCalendar(t *testing.T) {
 	}
 }
 
+func TestAuthorCommits(t *testing.T) {
+	d := sample()
+	got := d.AuthorCommits(at(2026, 3, 10, 0), at(2026, 3, 31, 0))
+	if len(got) != 2 || got[0] != 2 || got[1] != 2 {
+		t.Errorf("AuthorCommits = %v, want [2 2]", got)
+	}
+}
+
 func TestFileRank(t *testing.T) {
 	d := sample()
 	rank := d.FileRank(at(2026, 3, 1, 0), at(2026, 3, 31, 0), AllAuthors, 0)

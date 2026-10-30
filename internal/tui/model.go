@@ -38,6 +38,7 @@ type Model struct {
 	end           time.Time // last day of the calendar
 
 	cal    stats.Calendar
+	shares []int // commits per author in the window, ignoring the author filter
 	files  []stats.FileStat
 	scroll int // first visible row of the file ranking
 }
@@ -180,6 +181,7 @@ func (m *Model) clampScroll() {
 func (m *Model) refresh() {
 	weeks := min(max((m.width-gutter)/cellWidth, 1), maxWeeks)
 	m.cal = m.data.Calendar(m.end, weeks, m.author)
+	m.shares = m.data.AuthorCommits(m.cal.Start, m.cal.End)
 	m.files = m.data.FileRank(m.cal.Start, m.cal.End, m.author, m.opts.Top)
 	m.clampScroll()
 }

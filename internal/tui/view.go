@@ -149,47 +149,45 @@ func (m Model) monthLabels() string {
 	return m.theme.dim.Render(strings.TrimRight(string(line), " "))
 }
 
-// authorLegend lists the authors active in the window in their colors.
+// authorLegend lists the authors active in the window in their colors with
+// their share of the window's commits, busiest first.
 func (m Model) authorLegend() string {
 	t := m.theme
-	counts := map[int]int{}
-	for _, w := range m.cal.Weeks {
-		for _, d := range w {
-			for id, n := range d.ByAuthor {
-				counts[id] += n
-			}
+	total := 0
+	var ids []int
+	for id, n := range m.shares {
+		if n > 0 {
+			ids = append(ids, id)
+			total += n
 		}
 	}
-	ids := make([]int, 0, len(counts))
-	for id := range counts {
-		ids = append(ids, id)
+	if total == 0 {
+		return strings.Repeat(" ", gutter) + t.dim.Render("No commits in this range")
 	}
-	sort.Ints(ids)
+	sort.SliceStable(ids, func(i, j int) bool { return m.shares[ids[i]] > m.shares[ids[j]] })
 
 	var parts []string
 	others, othersCommits := 0, 0
 	for _, id := range ids {
 		if id >= len(authorHues) && id != m.author {
 			others++
-			othersCommits += counts[id]
+			othersCommits += m.shares[id]
 			continue
 		}
-		parts = append(parts, m.authorChip(id, counts[id], id == m.author))
+		parts = append(parts, m.authorChip(id, m.shares[id], total))
 	}
 	if others > 0 {
 		parts = append(parts, lipgloss.NewStyle().Foreground(t.authorColor(len(authorHues))).Render(cellGlyph)+
-			t.dim.Render(fmt.Sprintf(" +%d %s %d", others, plural(others, "other", "others"), othersCommits)))
-	}
-	if len(parts) == 0 {
-		return strings.Repeat(" ", gutter) + t.dim.Render("No commits in this range")
+			t.dim.Render(fmt.Sprintf(" +%d %s %d · %s", others, plural(others, "other", "others"),
+				othersCommits, percent(othersCommits, total))))
 	}
 	return wrap(strings.Repeat(" ", gutter), parts, strings.Repeat(" ", gutter), m.width)
 }
 
-func (m Model) authorChip(id, commits int, selected bool) string {
+func (m Model) authorChip(id, commits, total int) string {
 	t := m.theme
 	name := t.text
-	if selected {
+	if id == m.author {
 		name = name.Bold(true).Underline(true)
 	}
 	a := m.data.Authors[id]
@@ -198,7 +196,8 @@ func (m Model) authorChip(id, commits int, selected bool) string {
 		email = t.dim.Render(" <" + a.Email + ">")
 	}
 	chip := lipgloss.NewStyle().Foreground(t.authorColor(id)).Render(cellGlyph) + " " +
-		name.Render(a.Name) + email + t.text.Render(fmt.Sprintf(" %d", commits))
+		name.Render(a.Name) + email + t.text.Render(fmt.Sprintf(" %d", commits)) +
+		t.dim.Render(" · ") + t.accent.Render(percent(commits, total))
 	return ansi.Truncate(chip, max(m.width-gutter, 1), "…")
 }
 
@@ -307,6 +306,15 @@ func human(n int) string {
 		return fmt.Sprintf("%.1fk", float64(n)/1e3)
 	}
 	return fmt.Sprint(n)
+}
+
+// percent formats n as a share of total, keeping small non-zero shares visible.
+func percent(n, total int) string {
+	p := 100 * float64(n) / float64(total)
+	if p > 0 && p < 0.1 {
+		return "<0.1%"
+	}
+	return fmt.Sprintf("%.1f%%", p)
 }
 
 func formatDate(t time.Time) string { return t.Format("Jan 2, 2006") }
