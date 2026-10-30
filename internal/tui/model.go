@@ -140,7 +140,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, tea.Batch(cmds...)
 	}
 	switch msg.String() {
-	case "q", "ctrl+c", "esc":
+	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "tab":
 		return m, m.setView((m.view + 1) % viewCount)

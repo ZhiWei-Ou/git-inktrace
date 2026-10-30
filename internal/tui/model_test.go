@@ -509,3 +509,21 @@ func TestGraphSearchLoadsHistory(t *testing.T) {
 		t.Errorf("n after loading: cursor %d", m.graph.cursor)
 	}
 }
+
+func TestQuitKeys(t *testing.T) {
+	m := New(stats.New([]gitlog.Commit{{Author: "A", Email: "a@x", Time: time.Now()}}, nil), Options{})
+	quits := func(msg tea.KeyMsg) bool {
+		_, cmd := m.Update(msg)
+		if cmd == nil {
+			return false
+		}
+		_, ok := cmd().(tea.QuitMsg)
+		return ok
+	}
+	if !quits(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q")}) || !quits(tea.KeyMsg{Type: tea.KeyCtrlC}) {
+		t.Error("q and ctrl+c should quit")
+	}
+	if quits(tea.KeyMsg{Type: tea.KeyEsc}) {
+		t.Error("esc should not quit")
+	}
+}

@@ -118,7 +118,7 @@ The heatmap ends today. If the repository has had no commits for over a year, it
 | `n` / `N` | Jump to the next / previous matching commit (graph) |
 | `pgup` `pgdn`, `g` `G` | Page, or jump to the top / bottom of the file ranking or the graph |
 | `a` (graph) | Switch the graph between all branches (default) and the current branch |
-| `q`, `esc` | Quit |
+| `q`, `ctrl+c` | Quit |
 
 The heatmap is read-only. The file ranking always covers the same dates and author filter as the heatmap. You can move back while older commits lie before the window, and forward until the latest window. The month column is the calendar month of the window's last day.
 
