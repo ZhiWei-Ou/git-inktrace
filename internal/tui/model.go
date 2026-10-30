@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
 	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
 )
 
@@ -35,7 +36,15 @@ type Options struct {
 	// oldest counted commit stands in when it is zero.
 	Created time.Time
 	View    View // page shown first
+	// Commits are the headers behind the data, whose file changes load in
+	// the background; nil when the data already has them.
+	Commits  []gitlog.Commit
+	Tracked  []string // paths in HEAD, for the reloaded ranking
+	Branches int      // local and remote branches; many start the graph on the current one
 }
+
+// allBranchesLimit is the most branches the graph shows all of at first.
+const allBranchesLimit = 10
 
 // Model is the bubbletea model.
 type Model struct {
@@ -60,6 +69,10 @@ type Model struct {
 	graph    graphState
 	inspect  inspectState // details of the selected file or commit
 	helpOpen bool         // the help page covers the current page
+
+	commits []gitlog.Commit // headers indexed for file changes
+	tracked []string
+	index   indexState
 }
 
 // New creates a model showing the year up to today, or up to the latest
@@ -74,7 +87,11 @@ func New(data *stats.Data, opts Options) Model {
 		view:   opts.View,
 		author: stats.AllAuthors,
 		end:    defaultEnd(data),
-		graph:  graphState{all: true, limit: graphPage},
+		graph:  graphState{all: opts.Branches <= allBranchesLimit, limit: graphPage},
+	}
+	if len(opts.Commits) > 0 {
+		m.commits, m.tracked = opts.Commits, opts.Tracked
+		m.prepareIndex()
 	}
 	// Render a valid first frame before the terminal size arrives.
 	m.refresh()
@@ -105,10 +122,14 @@ func Run(data *stats.Data, opts Options) error {
 }
 
 func (m Model) Init() tea.Cmd {
+	var cmds []tea.Cmd
 	if m.graph.loading {
-		return m.fetchGraph()
+		cmds = append(cmds, m.fetchGraph())
 	}
-	return nil
+	if m.index.loading {
+		cmds = append(cmds, m.indexCmd())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -129,7 +150,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case rewordedMsg:
 		return m, m.receiveReworded(msg)
 	case dataMsg:
-		m.receiveData(msg)
+		return m, m.receiveData(msg)
+	case indexedMsg:
+		m.receiveIndexed(msg)
+	case indexTickMsg:
+		return m, m.receiveIndexTick(msg)
 	}
 	return m, nil
 }

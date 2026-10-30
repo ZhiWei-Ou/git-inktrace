@@ -409,7 +409,11 @@ func (m Model) fileRows() int {
 
 func (m Model) fileTable() string {
 	t := m.theme
+	status := m.indexStatus()
 	if len(m.files) == 0 {
+		if status != "" {
+			return " " + status + "\n"
+		}
 		return " " + t.dim.Render("No file changes in this range") + "\n"
 	}
 
@@ -452,7 +456,10 @@ func (m Model) fileTable() string {
 		}
 		b.WriteString(line + "\n")
 	}
-	if len(m.files) > m.fileRows() {
+	switch {
+	case status != "": // the ranking is still missing newer commits
+		b.WriteString(" " + status + "\n")
+	case len(m.files) > m.fileRows():
 		b.WriteString(" " + t.dim.Render(fmt.Sprintf("%d–%d of %d", m.scroll+1, end, len(m.files))) + "\n")
 	}
 	return b.String()

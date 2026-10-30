@@ -5,7 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -105,6 +107,42 @@ func TestFirstCommitTime(t *testing.T) {
 	first, err := FirstCommitTime(dir)
 	if err != nil || first.Unix() != 1748782800 {
 		t.Errorf("FirstCommitTime = %v, %v", first, err)
+	}
+}
+
+func TestReadFilesInParallel(t *testing.T) {
+	dir, run := rewordRepo(t)
+	run("mv", "a.txt", "renamed.txt")
+	run("commit", "-q", "-m", "rename")
+	commits, err := ReadHeaders(dir, Options{})
+	if err != nil || len(commits) != 6 || commits[0].Files != nil {
+		t.Fatalf("headers: %d, %v", len(commits), err)
+	}
+	one, err := ReadFiles(dir, commits, 1, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var done atomic.Int64
+	many, err := ReadFiles(dir, commits, 4, &done)
+	if err != nil || !reflect.DeepEqual(one, many) || done.Load() != 6 {
+		t.Errorf("4 workers: %v, done %d, %v\nwant %v", many, done.Load(), err, one)
+	}
+	if f := many[0]; len(f) != 1 || f[0].OldPath != "a.txt" || f[0].Path != "renamed.txt" {
+		t.Errorf("rename = %+v", f)
+	}
+	// The root commit has its files too.
+	if f := many[len(many)-1]; len(f) != 1 || f[0] != (FileChange{Path: "a.txt", Added: 1}) {
+		t.Errorf("root = %+v", f)
+	}
+}
+
+func TestBranchCount(t *testing.T) {
+	dir, run := rewordRepo(t)
+	run("update-ref", "refs/remotes/origin/main", "main")
+	run("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	// main, side and origin/main; origin/HEAD only points at one of them.
+	if n, err := BranchCount(dir); n != 3 || err != nil {
+		t.Errorf("BranchCount = %d, %v", n, err)
 	}
 }
 

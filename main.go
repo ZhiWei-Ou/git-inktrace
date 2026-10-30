@@ -57,7 +57,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	commits, err := gitlog.Read(root, gitlog.Options{All: *all})
+	// File changes take most of the reading time on a large history, so the
+	// TUI opens on the headers and reads them in the background.
+	commits, err := gitlog.ReadHeaders(root, gitlog.Options{All: *all})
 	if err != nil {
 		return err
 	}
@@ -72,14 +74,21 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	branches, err := gitlog.BranchCount(root)
+	if err != nil {
+		return err
+	}
 	return tui.Run(stats.New(commits, tracked), tui.Options{
-		Repo:    filepath.Base(root),
-		Branch:  gitlog.Branch(root),
-		Top:     *top,
-		Dir:     root,
-		All:     *all,
-		Created: created,
-		View:    view,
+		Repo:     filepath.Base(root),
+		Branch:   gitlog.Branch(root),
+		Top:      *top,
+		Dir:      root,
+		All:      *all,
+		Created:  created,
+		Commits:  commits,
+		Tracked:  tracked,
+		Branches: branches,
+		View:     view,
 	})
 }
 

@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -68,13 +70,30 @@ type Options struct {
 	All bool // read every branch, remote branch and tag instead of HEAD
 }
 
-// Read returns the non-merge commits reachable from HEAD (or all refs), newest first.
-// Author names and emails have .mailmap applied, and renames are detected.
-// A repository without commits yields an empty slice.
+// Read returns the non-merge commits reachable from HEAD (or all refs),
+// newest first, with their file changes. Author names and emails have
+// .mailmap applied, and renames are detected. A repository without commits
+// yields an empty slice.
 func Read(dir string, opts Options) ([]Commit, error) {
-	args := []string{
-		"log", "--no-merges", "-M", "--numstat", "-z", commitFormat,
+	commits, err := ReadHeaders(dir, opts)
+	if err != nil {
+		return nil, err
 	}
+	files, err := ReadFiles(dir, commits, runtime.NumCPU(), nil)
+	if err != nil {
+		return nil, err
+	}
+	for i := range commits {
+		commits[i].Files = files[i]
+	}
+	return commits, nil
+}
+
+// ReadHeaders returns the commits Read would, without their file changes.
+// Comparing every commit with its parent is nearly all the work of Read, so
+// this is many times faster on a large history.
+func ReadHeaders(dir string, opts Options) ([]Commit, error) {
+	args := []string{"log", "--no-merges", "-z", commitFormat}
 	if opts.All {
 		args = append(args, allRefs...)
 	}
@@ -101,6 +120,114 @@ func Read(dir string, opts Options) ([]Commit, error) {
 		return nil, fmt.Errorf("git log: %s", msg)
 	}
 	return commits, parseErr
+}
+
+// ReadFiles returns the file changes of each commit, compared with its
+// parent and with renames detected, indexed like commits. Up to workers git
+// processes share the commits; done, when not nil, counts the commits read
+// so far.
+func ReadFiles(dir string, commits []Commit, workers int, done *atomic.Int64) ([][]FileChange, error) {
+	files := make([][]FileChange, len(commits))
+	index := make(map[string]int, len(commits))
+	for i, c := range commits {
+		index[c.Hash] = i
+	}
+	workers = max(min(workers, len(commits)), 1)
+	errs := make(chan error, workers)
+	for w := 0; w < workers; w++ {
+		// Every workers-th commit, so that costly stretches of history spread
+		// over all processes.
+		var hashes strings.Builder
+		for i := w; i < len(commits); i += workers {
+			hashes.WriteString(commits[i].Hash + "\n")
+		}
+		go func() { errs <- diffTree(dir, hashes.String(), index, files, done) }()
+	}
+	var err error
+	for w := 0; w < workers; w++ {
+		if e := <-errs; e != nil && err == nil {
+			err = e
+		}
+	}
+	return files, err
+}
+
+// diffTree reads the numstat of the commits listed in hashes into files at
+// their index. Its output is each commit hash followed by numstat tokens; a
+// rename is a token with an empty path followed by the old and new paths.
+func diffTree(dir, hashes string, index map[string]int, files [][]FileChange, done *atomic.Int64) error {
+	cmd := exec.Command("git", "diff-tree", "--stdin", "-r", "-M", "--numstat", "-z", "--root")
+	cmd.Dir = dir
+	cmd.Stdin = strings.NewReader(hashes)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	parseErr := func() error {
+		sc := bufio.NewScanner(stdout)
+		sc.Buffer(make([]byte, 64*1024), 16*1024*1024)
+		sc.Split(splitNUL)
+		current := -1
+		for sc.Scan() {
+			tok := sc.Text()
+			if !strings.Contains(tok, "\t") {
+				i, ok := index[strings.TrimSpace(tok)]
+				if !ok {
+					return fmt.Errorf("git diff-tree: unexpected %q", tok)
+				}
+				current = i
+				if done != nil {
+					done.Add(1)
+				}
+				continue
+			}
+			if current < 0 {
+				return fmt.Errorf("git diff-tree: changes before a commit: %q", tok)
+			}
+			fc, err := parseNumstat(tok)
+			if err != nil {
+				return err
+			}
+			if fc.Path == "" {
+				if !sc.Scan() {
+					return fmt.Errorf("truncated rename after %q", tok)
+				}
+				fc.OldPath = sc.Text()
+				if !sc.Scan() {
+					return fmt.Errorf("truncated rename after %q", tok)
+				}
+				fc.Path = sc.Text()
+			}
+			files[current] = append(files[current], fc)
+		}
+		return sc.Err()
+	}()
+	_, _ = io.Copy(io.Discard, stdout)
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("git diff-tree: %s", strings.TrimSpace(stderr.String()))
+	}
+	return parseErr
+}
+
+// BranchCount returns the number of local and remote-tracking branches,
+// leaving out symbolic refs such as origin/HEAD.
+func BranchCount(dir string) (int, error) {
+	out, err := git(dir, "for-each-ref", "--format=%(symref)", "refs/heads", "refs/remotes")
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for line := range strings.Lines(string(out)) {
+		if strings.TrimSpace(line) == "" {
+			n++
+		}
+	}
+	return n, nil
 }
 
 // CommitFiles returns the files changed by one commit, with renames

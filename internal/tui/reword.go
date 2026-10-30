@@ -9,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
-	"github.com/ZhiWei-Ou/git-inktrace/internal/stats"
 )
 
 // The git operations behind a reword; tests replace them.
@@ -36,11 +35,6 @@ type rewordedMsg struct {
 	commit *gitlog.GraphCommit
 	hash   string // new hash of the reworded commit
 	err    error
-}
-
-type dataMsg struct {
-	data *stats.Data
-	err  error
 }
 
 // startReword checks whether the selected commit can be reworded.
@@ -125,31 +119,6 @@ func (m *Model) receiveReworded(msg rewordedMsg) tea.Cmd {
 	g.seq++ // drop pages read before the rewrite
 	g.loaded, g.loading = false, false
 	return tea.Batch(m.loadGraph(), m.reloadData())
-}
-
-// reloadData reads the history again for the heatmap, ranking and punch card.
-func (m Model) reloadData() tea.Cmd {
-	dir, all := m.opts.Dir, m.opts.All
-	return func() tea.Msg {
-		commits, err := gitlog.Read(dir, gitlog.Options{All: all})
-		if err != nil {
-			return dataMsg{err: err}
-		}
-		tracked, err := gitlog.Tracked(dir)
-		if err != nil {
-			return dataMsg{err: err}
-		}
-		return dataMsg{data: stats.New(commits, tracked)}
-	}
-}
-
-func (m *Model) receiveData(msg dataMsg) {
-	if msg.err != nil {
-		m.graph.status = "Cannot reload history: " + msg.err.Error()
-		return
-	}
-	m.data = msg.data
-	m.refresh()
 }
 
 // confirmPrompt asks whether to rewrite a commit already on remote branches.

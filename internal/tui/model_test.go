@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -946,5 +947,96 @@ func TestHelpPage(t *testing.T) {
 	m = press(testModel(t, 80), "3", "/", "?")
 	if m.helpOpen || m.graph.input != "?" {
 		t.Errorf("? at the prompt: open %v, input %q", m.helpOpen, m.graph.input)
+	}
+}
+
+// runIndex runs the indexing command of a batch, skipping the progress tick.
+func runIndex(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	for _, c := range cmd().(tea.BatchMsg) {
+		if c == nil {
+			continue
+		}
+		done := make(chan tea.Msg, 1)
+		go func() { done <- c() }()
+		select {
+		case msg := <-done:
+			if msg, ok := msg.(indexedMsg); ok {
+				next, _ := m.Update(msg)
+				return next.(Model)
+			}
+		case <-time.After(50 * time.Millisecond): // the tick
+		}
+	}
+	t.Fatal("no indexing in the batch")
+	return m
+}
+
+func TestBackgroundIndex(t *testing.T) {
+	now := time.Now()
+	header := func(hash string, d int) gitlog.Commit {
+		return gitlog.Commit{Hash: hash, Author: "Alice", Email: "a@x", Time: now.AddDate(0, 0, -d)}
+	}
+	commits := []gitlog.Commit{header("bbb", 0), header("aaa", 1)}
+	var asked []string
+	readFiles = func(dir string, cs []gitlog.Commit, workers int, done *atomic.Int64) ([][]gitlog.FileChange, error) {
+		files := make([][]gitlog.FileChange, len(cs))
+		for i, c := range cs {
+			asked = append(asked, c.Hash)
+			files[i] = []gitlog.FileChange{{Path: c.Hash + ".go", Added: 1}}
+			done.Add(1)
+		}
+		return files, nil
+	}
+	defer func() { readFiles = gitlog.ReadFiles }()
+
+	m := New(stats.New(commits, nil), Options{View: FilesView, Commits: commits})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	m = next.(Model)
+	if out := m.View(); !m.index.loading || !strings.Contains(out, "Reading changed files") || !strings.Contains(out, "0 / 2 commits") {
+		t.Fatalf("no progress while indexing:\n%s", out)
+	}
+	m = runIndex(t, m, m.Init())
+	if out := m.View(); m.index.loading || len(m.files) != 2 || !strings.Contains(out, "aaa.go") || strings.Contains(out, "Reading") {
+		t.Fatalf("ranking after indexing:\n%s", out)
+	}
+
+	// After history changes, known commits keep their files at once and
+	// only the new one is read.
+	asked = nil
+	next, cmd := m.Update(dataMsg{commits: []gitlog.Commit{header("ccc", 0), header("aaa", 1)}})
+	m = next.(Model)
+	if len(m.files) != 1 || m.files[0].Path != "aaa.go" || m.index.total != 1 || !strings.Contains(m.View(), "Reading changed files") {
+		t.Fatalf("reloaded ranking %+v, total %d", m.files, m.index.total)
+	}
+	stale := indexedMsg{gen: m.index.gen - 1, data: stats.New(nil, nil)}
+	if next, _ := m.Update(stale); len(next.(Model).files) != 1 {
+		t.Error("stale indexing accepted")
+	}
+	m = runIndex(t, m, cmd)
+	if strings.Join(asked, " ") != "ccc" || len(m.files) != 2 || m.files[1].Path != "ccc.go" && m.files[0].Path != "ccc.go" {
+		t.Errorf("asked %v, files %+v", asked, m.files)
+	}
+	if _, ok := m.index.cache["bbb"]; ok {
+		t.Error("cache keeps a commit no longer in history")
+	}
+
+	// A failure is shown in place of the ranking.
+	readFiles = func(string, []gitlog.Commit, int, *atomic.Int64) ([][]gitlog.FileChange, error) {
+		return nil, errors.New("boom")
+	}
+	m = New(stats.New(commits, nil), Options{View: FilesView, Commits: commits})
+	if m = runIndex(t, m, m.Init()); !strings.Contains(m.View(), "Cannot read changed files: boom") {
+		t.Errorf("error not shown:\n%s", m.View())
+	}
+}
+
+func TestGraphStartsOnCurrentBranchWithManyBranches(t *testing.T) {
+	data := stats.New([]gitlog.Commit{{Author: "A", Email: "a@x", Time: time.Now()}}, nil)
+	if m := New(data, Options{Branches: allBranchesLimit}); !m.graph.all {
+		t.Error("few branches should graph all of them")
+	}
+	if m := New(data, Options{Branches: allBranchesLimit + 1}); m.graph.all || !strings.Contains(m.graphScope(), "current branch") {
+		t.Error("many branches should graph the current one")
 	}
 }
