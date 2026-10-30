@@ -43,6 +43,7 @@
 ## Features
 
 - **Contribution heatmap** — a GitHub-style calendar of weeks by weekdays, sized to fit the terminal (up to 53 weeks).
+- **Repository overview** — above the heatmap, aligned columns show when the repository was created (its first commit on any branch, remote branch or tag, not only the checked-out one), how old it is, when the last commit landed, and the numbers of commits and authors. Columns that do not fit the terminal are left out.
 - **Contribution share** — the legend lists each author with their email, with commit count and share in the current calendar month, the visible time window and the whole repository history, busiest first. A column that would repeat its neighbor is hidden — for example, only the history column is shown when the window already holds every commit.
 - **A color per developer** — each day takes the color of the author with the most commits that day; shade shows how busy the day was. The top eight authors get their own hue, everyone else shares grey.
 - **Hot file ranking** — files ordered by how many commits touched them, with lines added and deleted and the author who changed each file most. History follows renames to each file's current path, and files no longer in `HEAD` are tagged `(deleted)`. Select a file and press `enter` to list the commits that touched it.

@@ -124,6 +124,30 @@ func CommitBody(dir, hash string) (string, error) {
 	return strings.TrimRight(string(out), "\n"), err
 }
 
+// FirstCommitTime returns the earliest author date among the root commits of
+// HEAD, every branch, remote branch and tag: when the repository started,
+// whichever branch is checked out. It is zero in a repository without commits.
+func FirstCommitTime(dir string) (time.Time, error) {
+	out, err := git(dir, append([]string{"log", "--max-parents=0", "--format=%aI"}, allRefs...)...)
+	if err != nil {
+		if strings.Contains(err.Error(), "does not have any commits") {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
+	}
+	var first time.Time
+	for line := range strings.FieldsSeq(string(out)) {
+		t, err := time.Parse(time.RFC3339, line)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("malformed commit time %q: %w", line, err)
+		}
+		if first.IsZero() || t.Before(first) {
+			first = t
+		}
+	}
+	return first, nil
+}
+
 // Tracked returns the paths of the files in the HEAD tree.
 func Tracked(dir string) ([]string, error) {
 	out, err := git(dir, "ls-tree", "-r", "-z", "--name-only", "HEAD")

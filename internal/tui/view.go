@@ -100,10 +100,14 @@ func (m Model) help() string {
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }
 
+// heatmap draws the calendar with its scale and author legend as one block,
+// centered in the terminal.
 func (m Model) heatmap() string {
 	t := m.theme
+	width := gutter + len(m.cal.Weeks)*cellWidth
 	var b strings.Builder
 
+	b.WriteString(m.overview(width) + "\n\n")
 	b.WriteString(m.monthLabels() + "\n")
 	weekdays := [7]string{"", "Mon", "", "Wed", "", "Fri", ""}
 	for wd := 0; wd < 7; wd++ {
@@ -134,9 +138,24 @@ func (m Model) heatmap() string {
 			}
 		}
 	}
-	b.WriteString("\n" + spread(scale, t.dim.Render(fmt.Sprintf("%d active %s ", active, plural(active, "day", "days"))), m.width) + "\n\n")
-	b.WriteString(m.authorLegend())
-	return b.String()
+	b.WriteString("\n" + spread(scale, t.dim.Render(fmt.Sprintf("%d active %s ", active, plural(active, "day", "days"))), width) + "\n\n")
+	b.WriteString(m.authorLegend(width))
+	return indent(b.String(), max((m.width-width)/2, 0))
+}
+
+// indent shifts every non-empty line of s right by n columns.
+func indent(s string, n int) string {
+	if n == 0 {
+		return s
+	}
+	pad := strings.Repeat(" ", n)
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		if l != "" {
+			lines[i] = pad + l
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // monthLabels places a month name above the first week starting in that month.
@@ -170,13 +189,113 @@ func (m Model) monthLabels() string {
 }
 
 // Lines of the heatmap view outside the author legend rows.
-const heatmapChrome = 17
+const heatmapChrome = 20
+
+// overview sums up the repository in columns spread across the grid with
+// equal space around each, every value centered under its dim title.
+// Columns that do not fit in width are left out from the right.
+func (m Model) overview(width int) string {
+	t := m.theme
+	created := m.opts.Created
+	if created.IsZero() {
+		created = m.data.Earliest()
+	}
+	cells := [][2]string{
+		{"created", formatDate(created)},
+		{"age", age(created, time.Now())},
+		{"last commit", ago(m.data.Latest(), today())},
+		{"commits", thousands(m.data.Len())},
+		{"authors", thousands(len(m.data.Authors))},
+	}
+	const gap = 4 // least space between neighboring cells
+	area := width - gutter
+	widths := make([]int, len(cells))
+	for i, c := range cells {
+		widths[i] = max(len(c[0]), lipgloss.Width(c[1]))
+	}
+	used := 0
+	n := 0
+	for ; n < len(cells) && used+widths[n]+gap <= area; n++ {
+		used += widths[n] + gap
+	}
+	titles, values := strings.Repeat(" ", gutter), strings.Repeat(" ", gutter)
+	for i, c := range cells[:n] {
+		// Share the spare columns out evenly, the remainder to the first slots.
+		slot := widths[i] + (area-used+n*gap)/n
+		if i < (area-used+n*gap)%n {
+			slot++
+		}
+		center := func(s string) string {
+			left := (slot - lipgloss.Width(s)) / 2
+			return strings.Repeat(" ", left) + s + strings.Repeat(" ", slot-left-lipgloss.Width(s))
+		}
+		titles += t.dim.Render(center(c[0]))
+		values += t.text.Bold(true).Render(center(c[1]))
+	}
+	return titles + "\n" + values
+}
+
+// age is the time from one date to another in at most two calendar units,
+// such as "2 years 3 months", "10 months 9 days" or "12 days".
+func age(from, to time.Time) string {
+	from, to = midnight(from), midnight(to)
+	if !to.After(from) {
+		return "0 days"
+	}
+	// Whole months first, a month on from the 31st landing on the last day
+	// of a shorter month, then the days left.
+	addMonths := func(n int) time.Time {
+		last := time.Date(from.Year(), from.Month()+time.Month(n)+1, 0, 0, 0, 0, 0, time.Local).Day()
+		return time.Date(from.Year(), from.Month()+time.Month(n), min(from.Day(), last), 0, 0, 0, 0, time.Local)
+	}
+	months := (to.Year()-from.Year())*12 + int(to.Month()) - int(from.Month())
+	if addMonths(months).After(to) {
+		months--
+	}
+	y, mo := months/12, months%12
+	d := int(to.Sub(addMonths(months)).Hours()/24 + 0.5)
+	var parts []string
+	for _, u := range []struct {
+		n         int
+		one, many string
+	}{{y, "year", "years"}, {mo, "month", "months"}, {d, "day", "days"}} {
+		if u.n > 0 && len(parts) < 2 {
+			parts = append(parts, fmt.Sprintf("%d %s", u.n, plural(u.n, u.one, u.many)))
+		} else if len(parts) > 0 {
+			break // keep the two units adjacent, e.g. no "1 year 4 days"
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// ago describes a past date relative to today.
+func ago(t, today time.Time) string {
+	switch days := int(today.Sub(midnight(t)).Hours()/24 + 0.5); {
+	case days <= 0:
+		return "today"
+	case days == 1:
+		return "yesterday"
+	case days < 30:
+		return fmt.Sprintf("%d days ago", days)
+	}
+	return formatDate(t)
+}
+
+// thousands formats n with comma separators.
+func thousands(n int) string {
+	s := fmt.Sprint(n)
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return s
+}
 
 // authorLegend is a table of authors in their colors with their commits and
 // share in the calendar month, the window and the whole history, busiest
 // first. A column is left out when it would repeat the broader one next to it.
-// Authors without their own hue, or beyond the screen height, fold into one row.
-func (m Model) authorLegend() string {
+// Authors without their own hue, or beyond the screen height, fold into one
+// row. Author labels are truncated to fit the legend in width columns.
+func (m Model) authorLegend(width int) string {
 	t := m.theme
 	all := make([]int, len(m.data.Authors))
 	for id, a := range m.data.Authors {
@@ -254,7 +373,7 @@ func (m Model) authorLegend() string {
 	for _, r := range rows {
 		labelWidth = max(labelWidth, ansi.StringWidth(r.label))
 	}
-	labelWidth = min(labelWidth, max(m.width-gutter-2-len(cols)*(numWidth+3), 8))
+	labelWidth = min(labelWidth, max(width-gutter-2-len(cols)*(numWidth+3), 8))
 
 	indent := strings.Repeat(" ", gutter)
 	var b strings.Builder

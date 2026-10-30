@@ -11,6 +11,7 @@ import (
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/muesli/termenv"
 
 	"github.com/ZhiWei-Ou/git-inktrace/internal/gitlog"
@@ -65,6 +66,84 @@ func TestHeatmapFitsWidth(t *testing.T) {
 		if m.cal.Total == 0 || !strings.Contains(m.View(), "Alice") {
 			t.Errorf("width %d: heatmap missing commits", width)
 		}
+	}
+}
+
+func TestHeatmapCentered(t *testing.T) {
+	m := testModel(t, 200)
+	grid := gutter + maxWeeks*cellWidth
+	pad := (200 - grid) / 2
+	for _, line := range strings.Split(m.heatmap(), "\n") {
+		if line == "" {
+			continue
+		}
+		plain := ansi.Strip(line)
+		if lead := len(plain) - len(strings.TrimLeft(plain, " ")); lead < pad {
+			t.Errorf("line starts at %d, want at least %d: %q", lead, pad, plain)
+		}
+		if w := lipgloss.Width(line); w > pad+grid {
+			t.Errorf("line ends at %d, past the block at %d: %q", w, pad+grid, plain)
+		}
+	}
+	// A terminal the grid fills leaves nothing to center.
+	if m := testModel(t, 80); !strings.Contains(ansi.Strip(m.heatmap()), "\n Mon ") {
+		t.Errorf("80 columns shifted:\n%s", m.heatmap())
+	}
+}
+
+func TestOverview(t *testing.T) {
+	m := testModel(t, 120)
+	created := time.Date(2024, 2, 29, 9, 0, 0, 0, time.Local)
+	m.opts.Created = created
+	out := ansi.Strip(m.heatmap())
+	lines := strings.Split(out, "\n")
+	// Each value is centered under its title, and the columns span the grid.
+	grid := gutter + len(m.cal.Weeks)*cellWidth
+	left := (120 - grid) / 2 // the heatmap block is centered too
+	mid := func(line, s string) int { return strings.Index(line, s)*2 + len(s) }
+	for i, title := range []string{"created", "age", "last commit", "commits", "authors"} {
+		value := []string{"Feb 29, 2024", age(created, time.Now()), "today", "40", "3"}[i]
+		if !strings.Contains(lines[0], title) || !strings.Contains(lines[1], value) {
+			t.Fatalf("missing %s or %q:\n%s", title, value, out)
+		}
+		if d := mid(lines[0], title) - mid(lines[1], value); d < -1 || d > 1 {
+			t.Errorf("%s and %q not centered on each other:\n%s", title, value, out)
+		}
+	}
+	if strings.Index(lines[1], "Feb") < left+gutter || len(strings.TrimRight(lines[1], " ")) > left+grid {
+		t.Errorf("overview outside the grid:\n%s", out)
+	}
+	// Columns that do not fit are left out.
+	if m := testModel(t, 50); strings.Contains(ansi.Strip(m.heatmap()), "authors") {
+		t.Errorf("50 columns kept every cell:\n%s", m.heatmap())
+	}
+}
+
+func TestAge(t *testing.T) {
+	d := func(y int, m time.Month, day int) time.Time { return time.Date(y, m, day, 12, 0, 0, 0, time.Local) }
+	for _, tc := range []struct {
+		from, to time.Time
+		want     string
+	}{
+		{d(2026, 10, 30), d(2026, 10, 30), "0 days"},
+		{d(2026, 10, 18), d(2026, 10, 30), "12 days"},
+		{d(2025, 12, 21), d(2026, 10, 30), "10 months 9 days"},
+		{d(2026, 1, 31), d(2026, 3, 1), "1 month 1 day"},
+		{d(2024, 7, 26), d(2026, 10, 30), "2 years 3 months"},
+		{d(2025, 10, 26), d(2026, 10, 30), "1 year"}, // no gap to days
+	} {
+		if got := age(tc.from, tc.to); got != tc.want {
+			t.Errorf("age(%s, %s) = %q, want %q", formatDate(tc.from), formatDate(tc.to), got, tc.want)
+		}
+	}
+	today := midnight(time.Now())
+	for days, want := range map[int]string{0: "today", 1: "yesterday", 5: "5 days ago"} {
+		if got := ago(today.AddDate(0, 0, -days).Add(13*time.Hour), today); got != want {
+			t.Errorf("ago %d days = %q, want %q", days, got, want)
+		}
+	}
+	if got := thousands(1234567); got != "1,234,567" {
+		t.Errorf("thousands = %q", got)
 	}
 }
 

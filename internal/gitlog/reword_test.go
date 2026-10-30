@@ -96,6 +96,18 @@ func TestReword(t *testing.T) {
 	}
 }
 
+func TestFirstCommitTime(t *testing.T) {
+	dir, run := rewordRepo(t)
+	// An older root on another branch counts, though HEAD does not reach it.
+	run("switch", "-q", "--orphan", "old")
+	run("commit", "-q", "--allow-empty", "-m", "old root", "--date", "2025-06-01T08:00:00-05:00")
+	run("switch", "-q", "main")
+	first, err := FirstCommitTime(dir)
+	if err != nil || first.Unix() != 1748782800 {
+		t.Errorf("FirstCommitTime = %v, %v", first, err)
+	}
+}
+
 func TestRewordHeadAndRoot(t *testing.T) {
 	dir, run := rewordRepo(t)
 	if _, err := Reword(dir, "HEAD", "tip\n"); err != nil {

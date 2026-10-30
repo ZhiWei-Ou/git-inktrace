@@ -31,6 +31,9 @@ type Options struct {
 	Top    int    // number of files in the ranking
 	Dir    string // repository root, read by the graph view
 	All    bool   // history covers every branch, remote branch and tag
+	// Created is the date of the repository's first commit on any ref; the
+	// oldest counted commit stands in when it is zero.
+	Created time.Time
 	View   View   // page shown first
 }
 

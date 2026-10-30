@@ -68,13 +68,18 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	created, err := gitlog.FirstCommitTime(root)
+	if err != nil {
+		return err
+	}
 	return tui.Run(stats.New(commits, tracked), tui.Options{
-		Repo:   filepath.Base(root),
-		Branch: gitlog.Branch(root),
-		Top:    *top,
-		Dir:    root,
-		All:    *all,
-		View:   view,
+		Repo:    filepath.Base(root),
+		Branch:  gitlog.Branch(root),
+		Top:     *top,
+		Dir:     root,
+		All:     *all,
+		Created: created,
+		View:    view,
 	})
 }
 
