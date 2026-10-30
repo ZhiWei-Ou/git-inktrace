@@ -125,6 +125,9 @@ func (m *Model) setView(v View) tea.Cmd {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.view == GraphView && m.graph.typing && msg.String() != "ctrl+c" {
+		return m, m.searchKey(msg)
+	}
 	// Fast typing or key repeat can deliver several runes in one message.
 	if msg.Type == tea.KeyRunes && len(msg.Runes) > 1 && !msg.Paste {
 		var cmds []tea.Cmd

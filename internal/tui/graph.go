@@ -30,7 +30,12 @@ type graphState struct {
 	err     error
 	scroll  int
 	cursor  int    // index of the selected commit line
-	status  string // result of the last copy
+	status  string // result of the last copy or search
+
+	typing bool       // the search prompt is open
+	input  string     // text at the search prompt
+	query  string     // the last search
+	match  graphQuery // what the graph highlights: the prompt text or the last search
 }
 
 // copyToClipboard writes to the system clipboard; tests replace it.
@@ -158,8 +163,15 @@ func (m *Model) graphKey(key string) tea.Cmd {
 		}
 		return nil
 	case "a":
-		*g = graphState{all: !g.all, limit: graphPage}
+		*g = graphState{all: !g.all, limit: graphPage, query: g.query, match: g.match}
 		return m.loadGraph()
+	case "/":
+		g.typing, g.input, g.match = true, "", graphQuery{}
+		return nil
+	case "n":
+		return m.jumpMatch(g.cursor+1, 1)
+	case "N":
+		return m.jumpMatch(g.cursor-1, -1)
 	}
 	m.clampGraph()
 	return m.loadMoreGraph()
@@ -192,7 +204,7 @@ func (m Model) graphScope() string {
 	return "current branch"
 }
 
-func (m Model) GraphView() string {
+func (m Model) graphView() string {
 	t := m.theme
 	g := m.graph
 	if g.err != nil {
@@ -212,6 +224,11 @@ func (m Model) GraphView() string {
 	}
 	if g.status != "" {
 		status = g.status
+	}
+	if g.typing {
+		b.WriteString(" " + t.accent.Render("/") + t.text.Render(g.input) + t.accent.Render("█") +
+			t.dim.Render("  @commit @author @email · tab complete · enter search · esc cancel") + "\n")
+		return b.String()
 	}
 	// The scope leads the status line so pressing a visibly changes it, even
 	// when every branch is already merged into the current one.
@@ -251,11 +268,19 @@ func (m Model) graphLine(l gitlog.GraphLine, selected bool) string {
 	if faded {
 		subject = t.dim
 	}
-	text := u(t.dim).Render(c.Hash) + space(1)
+	q := m.graph.match
+	hit := !q.empty() && q.match(c)
+	mark := func(s, needle string, prefix bool, style lipgloss.Style) string {
+		if !hit {
+			return u(style).Render(s)
+		}
+		return m.highlight(s, needle, prefix, u(style), u(t.match))
+	}
+	text := mark(c.Hash, q.commit, true, t.dim) + space(1)
 	if len(c.Refs) > 0 {
 		text += m.refs(c.Refs, selected) + space(1)
 	}
-	text += u(subject).Render(c.Subject)
+	text += mark(c.Subject, q.message, false, subject)
 
 	rightWidth := 2 + graphAuthorWidth + 2 + graphDateWidth + 1
 	if m.width < 60+rightWidth {
@@ -264,10 +289,37 @@ func (m Model) graphLine(l gitlog.GraphLine, selected bool) string {
 	textWidth := m.width - rightWidth - lipgloss.Width(graph)
 	text = ansi.Truncate(text, max(textWidth-1, 1), "…")
 	name := ansi.Truncate(c.Author, graphAuthorWidth-2, "…")
-	author := u(color).Render(cellGlyph) + space(1) + u(subject).Render(name)
+	who := mark(name, q.author, false, subject)
+	if hit && q.email != "" {
+		who = u(t.match).Render(name) // the email is not shown, so mark its owner
+	}
+	author := u(color).Render(cellGlyph) + space(1) + who
 	return graph + text + space(textWidth-lipgloss.Width(text)+2) +
 		author + space(graphAuthorWidth-lipgloss.Width(author)+2) +
 		u(t.dim).Render(c.Time.Local().Format("2006-01-02")) + " "
+}
+
+// highlight renders s with the occurrences of needle, matched case
+// insensitively, or only a leading one with prefix set, in the match style.
+func (m Model) highlight(s, needle string, prefix bool, base, match lipgloss.Style) string {
+	lower := strings.ToLower(s)
+	if needle == "" || len(lower) != len(s) {
+		return base.Render(s) // offsets would not line up if lowercasing changed the length
+	}
+	var b strings.Builder
+	for s != "" {
+		i := strings.Index(lower, needle)
+		if i < 0 || prefix && i > 0 {
+			break
+		}
+		j := i + len(needle)
+		b.WriteString(base.Render(s[:i]) + match.Render(s[i:j]))
+		s, lower = s[j:], lower[j:]
+		if prefix {
+			break
+		}
+	}
+	return b.String() + base.Render(s)
 }
 
 // refColors follow git's decoration colors.

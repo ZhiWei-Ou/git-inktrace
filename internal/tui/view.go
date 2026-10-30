@@ -31,7 +31,7 @@ func (m Model) View() string {
 	case FilesView:
 		b.WriteString(m.fileTable())
 	case GraphView:
-		b.WriteString(m.GraphView())
+		b.WriteString(m.graphView())
 	}
 	b.WriteString("\n" + m.help())
 	return b.String()
@@ -87,7 +87,7 @@ func (m Model) help() string {
 	case FilesView:
 		keys = "↑↓ scroll · pgup/pgdn page · ←→ year · t latest · a/A author · tab graph · q quit"
 	case GraphView:
-		keys = "↑↓ select · enter copy hash · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
+		keys = "↑↓ select · enter copy hash · / search · n/N next/prev · pgup/pgdn page · g/G top/bottom · a current/all branches · tab heatmap · q quit"
 	}
 	return " " + m.theme.dim.Render(ansi.Truncate(keys, max(m.width-2, 0), "…"))
 }

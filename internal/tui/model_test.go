@@ -361,3 +361,151 @@ func TestStartView(t *testing.T) {
 		t.Error("graph start loaded twice")
 	}
 }
+
+func TestGraphSearch(t *testing.T) {
+	now := time.Now()
+	commit := func(hash, subject, author, email string) gitlog.GraphLine {
+		return gitlog.GraphLine{Graph: "*", Commit: &gitlog.GraphCommit{
+			Hash: hash[:7], FullHash: hash, Subject: subject, Author: author, Email: email, Time: now,
+		}}
+	}
+	lines := []gitlog.GraphLine{
+		commit("aaaa111222", "Add parser", "Alice", "alice@x.io"),
+		{Graph: "|"},
+		commit("bbbb111222", "Fix parser crash", "Bob", "bob@y.io"),
+		commit("cccc111222", "Fix docs", "Alice", "alice@y.io"),
+	}
+	m := New(stats.New([]gitlog.Commit{{Author: "Alice", Email: "alice@x.io", Time: now}}, nil), Options{View: GraphView})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	next, _ = next.(Model).Update(graphMsg{all: true, limit: graphPage, lines: lines})
+	m = next.(Model)
+	key := func(m Model, k tea.KeyType) Model {
+		next, _ := m.Update(tea.KeyMsg{Type: k})
+		return next.(Model)
+	}
+	search := func(m Model, query string) Model {
+		m = press(m, "/", query)
+		return key(m, tea.KeyEnter)
+	}
+
+	// Keys typed at the prompt are text, not commands.
+	m = press(m, "/", "q")
+	if !m.graph.typing || m.graph.input != "q" || !strings.Contains(m.View(), "/q") {
+		t.Fatalf("prompt: typing %v, input %q", m.graph.typing, m.graph.input)
+	}
+	if m = key(m, tea.KeyEsc); m.graph.typing || m.graph.cursor != 0 {
+		t.Errorf("esc should close the prompt in place: %+v", m.graph.cursor)
+	}
+
+	for _, tc := range []struct {
+		query string
+		want  int
+	}{
+		{"FIX", 2},
+		{"fix @author alice", 3},
+		{"@email y.io @author bob", 2},
+		{"@commit CCCC", 3},
+		{"@commit 1111", -1}, // a hash matches by prefix only
+		{"parser @email x.io", 0},
+	} {
+		m.graph.cursor = 0
+		m = search(m, tc.query)
+		if got := m.graph.cursor; tc.want >= 0 && got != tc.want {
+			t.Errorf("%q: cursor %d, want %d", tc.query, got, tc.want)
+		}
+		if tc.want < 0 && !strings.Contains(m.graph.status, "No later match") {
+			t.Errorf("%q: status %q", tc.query, m.graph.status)
+		}
+	}
+
+	// n and N step between matches and stop at the ends.
+	m.graph.cursor = 0
+	m = search(m, "fix")
+	if m.graph.cursor != 2 || !strings.Contains(m.graph.status, "match 1 of 2") {
+		t.Errorf("search: cursor %d, status %q", m.graph.cursor, m.graph.status)
+	}
+	if m = press(m, "n"); m.graph.cursor != 3 {
+		t.Errorf("n: cursor %d", m.graph.cursor)
+	}
+	if m = press(m, "n"); m.graph.cursor != 3 || !strings.Contains(m.graph.status, "No later match") {
+		t.Errorf("n past the last: cursor %d, status %q", m.graph.cursor, m.graph.status)
+	}
+	if m = press(m, "N", "N"); m.graph.cursor != 2 || !strings.Contains(m.graph.status, "No earlier match") {
+		t.Errorf("N past the first: cursor %d, status %q", m.graph.cursor, m.graph.status)
+	}
+
+	// Matches are highlighted, and an empty search clears them.
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	mark := m.theme.match.Render("Fix")
+	if !strings.Contains(m.graphLine(lines[3], false), mark) || strings.Contains(m.graphLine(lines[0], false), m.theme.match.Render("Add")) {
+		t.Error("only matching commits should be highlighted")
+	}
+	if m = search(m, " "); m.graph.query != "" || strings.Contains(m.graphLine(lines[3], false), mark) {
+		t.Errorf("empty search kept %q", m.graph.query)
+	}
+
+	// The prompt highlights as you type, and esc goes back to the last search.
+	m = search(m, "add")
+	if m = press(m, "/", "fix"); !strings.Contains(m.graphLine(lines[3], false), mark) {
+		t.Error("typing does not highlight")
+	}
+	if m = key(m, tea.KeyEsc); strings.Contains(m.graphLine(lines[3], false), mark) ||
+		!strings.Contains(m.graphLine(lines[0], false), m.theme.match.Render("Add")) {
+		t.Error("esc should restore the last search's highlight")
+	}
+
+	// Tab completes a unique keyword prefix.
+	m = key(press(m, "/", "fix @AU"), tea.KeyTab)
+	if m.graph.input != "fix @author " {
+		t.Errorf("tab completed to %q", m.graph.input)
+	}
+	if m = key(press(key(m, tea.KeyCtrlU), "@"), tea.KeyTab); m.graph.input != "@" {
+		t.Errorf("ambiguous prefix completed to %q", m.graph.input)
+	}
+}
+
+func TestHighlight(t *testing.T) {
+	m := New(stats.New([]gitlog.Commit{{Author: "A", Email: "a@x", Time: time.Now()}}, nil), Options{})
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	base := lipgloss.NewStyle().Foreground(lipgloss.Color("#000000"))
+	match := lipgloss.NewStyle().Background(lipgloss.Color("#ffff00"))
+	got := m.highlight("Fix fix FIX", "fix", false, base, match)
+	if strings.Count(got, match.Render("Fix"))+strings.Count(got, match.Render("fix"))+strings.Count(got, match.Render("FIX")) != 3 {
+		t.Errorf("every occurrence: %q", got)
+	}
+	if got := m.highlight("abcabc", "abc", true, base, match); strings.Count(got, match.Render("abc")) != 1 {
+		t.Errorf("prefix: %q", got)
+	}
+	if got := m.highlight("xabc", "abc", true, base, match); strings.Contains(got, match.Render("abc")) {
+		t.Errorf("prefix not at the start: %q", got)
+	}
+}
+
+func TestGraphSearchLoadsHistory(t *testing.T) {
+	now := time.Now()
+	m := New(stats.New([]gitlog.Commit{{Author: "Alice", Email: "a@x", Time: now}}, nil), Options{View: GraphView})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	page := func(n int, subject string) []gitlog.GraphLine {
+		var lines []gitlog.GraphLine
+		for i := 0; i < n; i++ {
+			lines = append(lines, gitlog.GraphLine{Graph: "*", Commit: &gitlog.GraphCommit{
+				Hash: fmt.Sprintf("%07d", i), FullHash: fmt.Sprintf("%040d", i), Subject: "change", Time: now,
+			}})
+		}
+		lines[n-1].Commit.Subject = subject
+		return lines
+	}
+	next, _ = next.(Model).Update(graphMsg{all: true, limit: graphPage, lines: page(graphPage, "change")})
+	m = press(next.(Model), "/", "release")
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(Model)
+	if cmd == nil || m.graph.limit != 2*graphPage || m.graph.cursor != 0 {
+		t.Fatalf("no older history requested: limit %d, cursor %d", m.graph.limit, m.graph.cursor)
+	}
+	next, _ = m.Update(graphMsg{all: true, limit: 2 * graphPage, lines: page(graphPage+10, "release")})
+	if m = press(next.(Model), "n"); m.graph.cursor != graphPage+9 {
+		t.Errorf("n after loading: cursor %d", m.graph.cursor)
+	}
+}

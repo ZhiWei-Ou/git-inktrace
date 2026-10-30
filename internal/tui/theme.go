@@ -30,15 +30,15 @@ type theme struct {
 	// the last entry is the shared "others" hue.
 	cells [][5]lipgloss.Color
 
-	title, dim, text, accent, tab, activeTab lipgloss.Style
+	title, dim, text, accent, tab, activeTab, match lipgloss.Style
 }
 
 func newTheme(dark bool) theme {
 	base, empty := "#ffffff", "#ebedf0"
-	fg, dim, accent := "#24292f", "#6e7781", "#0969da"
+	fg, dim, accent, mark := "#24292f", "#6e7781", "#0969da", "#fae17d"
 	if dark {
 		base, empty = "#0d1117", "#2d333b"
-		fg, dim, accent = "#e6edf3", "#7d8590", "#58a6ff"
+		fg, dim, accent, mark = "#e6edf3", "#7d8590", "#58a6ff", "#d29922"
 	}
 	t := theme{dark: dark}
 	for _, hue := range append(authorHues[:len(authorHues):len(authorHues)], othersHue) {
@@ -56,6 +56,7 @@ func newTheme(dark bool) theme {
 	t.tab = t.dim.Padding(0, 1)
 	t.activeTab = lipgloss.NewStyle().Bold(true).Padding(0, 1).
 		Foreground(lipgloss.Color(base)).Background(lipgloss.Color(accent))
+	t.match = lipgloss.NewStyle().Foreground(lipgloss.Color("#24292f")).Background(lipgloss.Color(mark))
 	return t
 }
 
